@@ -416,7 +416,8 @@ async function raporGonder() {
     if (g.genelNot) msg+=`\n📝 ${g.genelNot}\n`;
     msg+='\n─────────────────────────\n\n';
   });
-  window.open('https://wa.me/'+WA_NUMBER+'?text='+encodeURIComponent(msg),'_blank');
+  const waUrl='https://wa.me/'+WA_NUMBER+'?text='+encodeURIComponent(msg);
+  const a=document.createElement('a'); a.href=waUrl; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
   raporModalKapat();
 }
 
