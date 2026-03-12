@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Uzman Anne Rehberi | Uyku Eğitimi Günlüğü</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream:#FAF7F2; --warm-white:#FDF9F4; --blush:#E8D5C4;
+  --dusty-rose:#C4936A; --deep-brown:#3D2B1F; --mid-brown:#7A5C48;
+  --sage:#8B9E88; --sage-light:#C5D4C2; --gold:#B8945A;
+  --text-main:#2C1F14; --text-soft:#7A6555; --border:#E2D5C8;
+  --success:#6B9E78; --shadow:rgba(61,43,31,0.08);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-main);min-height:100vh;}
+.screen{display:none;min-height:100vh;}
+.screen.active{display:block;}
+
+/* LANDING */
+#screen-landing{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px;text-align:center;background:var(--warm-white);}
+#screen-landing.active{display:flex;}
+.moon-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 28px;box-shadow:0 8px 32px rgba(196,147,106,0.3);font-size:32px;animation:float 4s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.landing-title{font-family:'Cormorant Garamond',serif;font-size:clamp(28px,5vw,46px);font-weight:300;color:var(--deep-brown);line-height:1.15;margin-bottom:8px;}
+.landing-title em{font-style:italic;color:var(--dusty-rose);}
+.landing-by{font-size:13px;color:var(--text-soft);margin-bottom:12px;letter-spacing:1px;}
+.landing-subtitle{font-size:14px;color:var(--text-soft);font-weight:300;margin-bottom:40px;max-width:400px;line-height:1.7;}
+.btn-group{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.btn-primary{background:linear-gradient(135deg,var(--dusty-rose),var(--gold));color:white;border:none;padding:14px 30px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(196,147,106,0.35);transition:all .3s;}
+.btn-primary:hover{transform:translateY(-2px);}
+.btn-secondary{background:transparent;color:var(--mid-brown);border:1.5px solid var(--border);padding:14px 30px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .3s;}
+.btn-secondary:hover{border-color:var(--dusty-rose);color:var(--dusty-rose);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:white;border-radius:20px;padding:28px 24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto;}
+.modal-box h2{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--deep-brown);margin-bottom:6px;}
+.modal-box p{font-size:13px;color:var(--text-soft);margin-bottom:18px;line-height:1.6;}
+.modal-tabs{display:flex;margin-bottom:18px;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;}
+.modal-tab{flex:1;padding:10px;background:white;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;transition:all .2s;}
+.modal-tab.active{background:var(--dusty-rose);color:white;}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:11px;}
+label{font-size:11.5px;font-weight:500;color:var(--mid-brown);}
+input,select,textarea{background:white;border:1.5px solid var(--border);border-radius:9px;padding:10px 13px;font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--text-main);transition:border-color .2s,box-shadow .2s;outline:none;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--dusty-rose);box-shadow:0 0 0 3px rgba(196,147,106,0.11);}
+textarea{resize:vertical;min-height:72px;line-height:1.5;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.error-msg{background:rgba(192,80,80,0.08);border:1px solid rgba(192,80,80,0.2);border-radius:8px;padding:10px 13px;font-size:12.5px;color:#C05050;margin-bottom:10px;display:none;}
+
+/* PORTAL */
+#screen-portal.active{display:block;}
+.portal-header{background:var(--warm-white);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px var(--shadow);}
+.portal-logo{width:34px;height:34px;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.portal-header-text h1{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:500;color:var(--deep-brown);}
+.portal-header-text p{font-size:11px;color:var(--text-soft);}
+.btn-cikis{background:none;border:1.5px solid var(--border);padding:7px 14px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-soft);cursor:pointer;transition:all .2s;margin-left:auto;}
+.btn-cikis:hover{border-color:var(--mid-brown);color:var(--mid-brown);}
+
+.portal-layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 60px);}
+@media(max-width:700px){.portal-layout{grid-template-columns:1fr;}}
+
+/* Geçmiş sidebar */
+.gecmis-sidebar{background:var(--warm-white);border-right:1px solid var(--border);padding:16px 0;}
+.gecmis-sidebar h3{font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--deep-brown);padding:0 16px 12px;border-bottom:1px solid var(--border);margin-bottom:8px;}
+.gecmis-item{padding:12px 16px;cursor:pointer;border-bottom:1px solid rgba(226,213,200,0.4);transition:background .2s;}
+.gecmis-item:hover{background:rgba(196,147,106,0.06);}
+.gecmis-item.aktif{background:rgba(196,147,106,0.1);border-left:3px solid var(--dusty-rose);}
+.gecmis-tarih{font-size:12.5px;font-weight:500;color:var(--deep-brown);margin-bottom:3px;}
+.gecmis-ozet{font-size:11px;color:var(--text-soft);}
+
+/* Editor */
+.gunluk-editor-area{padding:20px 20px 80px;}
+@media(max-width:700px){.gunluk-editor-area{padding:14px 14px 80px;}.gecmis-sidebar{border-right:none;border-bottom:1px solid var(--border);}}
+.editor-header{background:var(--warm-white);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.editor-header-left{flex:1;}
+.editor-tarih-label{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--deep-brown);margin-bottom:6px;}
+.editor-tarih-input{border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;color:var(--text-main);background:white;cursor:pointer;}
+.editor-tarih-input:focus{border-color:var(--dusty-rose);outline:none;}
+
+.form-card{background:var(--warm-white);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px var(--shadow);}
+.form-card h3{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:500;color:var(--deep-brown);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+
+.gunluk-entry{background:rgba(250,247,242,0.8);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.gunluk-entry h5{font-size:12px;font-weight:500;color:var(--mid-brown);margin-bottom:10px;letter-spacing:0.5px;text-transform:uppercase;}
+.time-group{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.gunduz-uyku-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:start;background:white;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;}
+.btn-remove-uyku{background:none;border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--dusty-rose);font-size:14px;align-self:end;}
+.btn-add-uyku{width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:none;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--mid-brown);cursor:pointer;transition:all .2s;}
+.btn-add-uyku:hover{border-color:var(--dusty-rose);color:var(--dusty-rose);}
+
+/* Bebek banner */
+.bebek-bilgi-card{background:rgba(196,147,106,0.06);border:1px solid rgba(196,147,106,0.2);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;}
+.bebek-avatar{width:40px;height:40px;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.bebek-bilgi-text strong{font-size:14px;color:var(--deep-brown);display:block;margin-bottom:2px;}
+.bebek-bilgi-text span{font-size:11.5px;color:var(--text-soft);display:block;}
+
+/* Kaydet & Rapor */
+.action-bar{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;}
+.btn-kaydet{flex:1;min-width:140px;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));color:white;border:none;padding:13px 20px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(196,147,106,0.3);transition:all .3s;}
+.btn-kaydet:hover{transform:translateY(-1px);}
+.btn-rapor{flex:1;min-width:140px;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#25D366;color:white;border:none;padding:13px 20px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(37,211,102,0.3);transition:all .3s;}
+.btn-rapor:hover{transform:translateY(-1px);}
+.save-status{font-size:12px;color:var(--sage);text-align:center;padding:6px;opacity:0;transition:opacity .3s;}
+.save-status.show{opacity:1;}
+
+/* Rapor Modal */
+.rapor-gun-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:8px;transition:all .2s;font-size:13px;background:white;}
+.rapor-gun-item:hover{border-color:var(--dusty-rose);}
+.rapor-gun-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--dusty-rose);cursor:pointer;flex-shrink:0;}
+
+/* Toast */
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--deep-brown);color:white;padding:12px 22px;border-radius:50px;font-size:13.5px;font-weight:500;z-index:9999;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.2);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* DASHBOARD */
+#screen-dashboard.active{display:block;}
+.dash-header{background:var(--deep-brown);padding:16px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.dash-header-left{display:flex;align-items:center;gap:13px;}
+.dash-logo{width:40px;height:40px;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;}
+.dash-title{font-family:'Cormorant Garamond',serif;font-size:21px;color:var(--cream);font-weight:400;}
+.dash-subtitle{font-size:11px;color:rgba(250,247,242,0.5);}
+.dash-content{max-width:1000px;margin:0 auto;padding:24px 18px;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--warm-white);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:0 2px 8px var(--shadow);}
+.stat-label{font-size:10.5px;color:var(--text-soft);letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px;}
+.stat-value{font-family:'Cormorant Garamond',serif;font-size:30px;color:var(--deep-brown);line-height:1;}
+.stat-sub{font-size:10.5px;color:var(--text-soft);margin-top:3px;}
+.search-bar-wrap{margin-bottom:16px;}
+.search-bar-wrap input{border-radius:10px;}
+.aile-list{display:flex;flex-direction:column;gap:10px;}
+.aile-card{background:var(--warm-white);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:0 2px 8px var(--shadow);cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:14px;}
+.aile-card:hover{border-color:var(--dusty-rose);transform:translateY(-1px);}
+.aile-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--dusty-rose),var(--gold));display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:18px;color:white;flex-shrink:0;}
+.aile-info strong{font-size:14px;color:var(--deep-brown);display:block;}
+.aile-info span{font-size:12px;color:var(--text-soft);display:block;}
+.aile-meta{margin-left:auto;text-align:right;}
+.gunluk-sayac{display:inline-flex;align-items:center;gap:5px;background:rgba(139,158,136,0.15);color:var(--sage);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;}
+.uzman-detail{display:none;}
+.uzman-detail.visible{display:block;}
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--mid-brown);font-size:13px;cursor:pointer;margin-bottom:20px;padding:8px 14px;background:white;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;}
+.detail-back:hover{border-color:var(--dusty-rose);color:var(--dusty-rose);}
+
+/* Günlük görüntüleme - uzman */
+.gunluk-day-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.gunluk-day-tab{padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:white;font-size:12px;color:var(--text-soft);cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.gunluk-day-tab.active{background:var(--deep-brown);border-color:var(--deep-brown);color:white;}
+.gunluk-day-panel{display:none;}
+.gunluk-day-panel.active{display:block;}
+.gunluk-block{background:white;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
+.gunluk-block h4{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--deep-brown);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.gunluk-timeline{list-style:none;padding:0;}
+.gtl-item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-size:13px;align-items:center;}
+.gtl-item.uyku{background:rgba(139,158,136,0.08);}
+.gtl-item.uyanik{background:rgba(196,147,106,0.07);}
+.gtl-saat{font-weight:600;color:var(--deep-brown);min-width:80px;font-size:12px;}
+.gtl-etiket{color:var(--text-soft);}
+.gtl-sure{color:var(--mid-brown);font-size:11.5px;}
+.gtl-not{background:rgba(250,247,242,0.8);border-left:3px solid var(--border);padding:6px 10px;border-radius:0 6px 6px 0;font-size:12.5px;color:var(--text-soft);margin-top:4px;}
+
+@media(max-width:600px){
+  input,select,textarea{font-size:16px!important;}
+  .form-row{grid-template-columns:1fr;}
+  .gunduz-uyku-row{grid-template-columns:1fr 1fr;}
+  .gunduz-uyku-row .form-group:nth-child(3){grid-column:1/-1;}
+  .action-bar{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="screen-landing" class="screen active">
+  <div class="moon-icon">🌙</div>
+  <p class="landing-by">UZMAN ANNE REHBERİ</p>
+  <h1 class="landing-title">Uyku Eğitimi<br><em>Günlük Takip</em></h1>
+  <p class="landing-subtitle">Eğitim sürecinde bebeğinizin uyku düzenini kayıt altına alın ve uzmanınızla paylaşın.</p>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="showAuthModal('kayit')">Kayıt Ol / Giriş Yap</button>
+    <button class="btn-secondary" onclick="showUzmanLogin()">Uzman Girişi</button>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal-box">
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-giris" onclick="authTab('giris')">Giriş Yap</button>
+      <button class="modal-tab" id="tab-kayit" onclick="authTab('kayit')">Kayıt Ol</button>
+    </div>
+    <div id="giris-alanlari">
+      <div class="form-group"><label>E-posta</label><input type="email" id="login-email" placeholder="ornek@email.com"></div>
+      <div class="form-group"><label>Şifre</label><input type="password" id="login-sifre" placeholder="Şifreniz"></div>
+      <div class="error-msg" id="login-hata"></div>
+      <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;" id="btn-giris">Giriş Yap →</button>
+    </div>
+    <div id="kayit-alanlari" style="display:none;">
+      <div class="form-row">
+        <div class="form-group"><label>Anne Adı Soyadı *</label><input type="text" id="reg-anne-ad" placeholder="Ad Soyad"></div>
+        <div class="form-group"><label>Bebek Adı *</label><input type="text" id="reg-bebek-ad" placeholder="Bebek adı"></div>
+      </div>
+      <div class="form-group"><label>Bebeğin Doğum Tarihi *</label><input type="date" id="reg-dogum-tarihi"></div>
+      <div class="form-group"><label>E-posta *</label><input type="email" id="reg-email" placeholder="ornek@email.com"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Şifre *</label><input type="password" id="reg-sifre" placeholder="Min. 6 karakter"></div>
+        <div class="form-group"><label>Şifre Tekrar *</label><input type="password" id="reg-sifre2" placeholder="Tekrar"></div>
+      </div>
+      <div class="error-msg" id="reg-hata"></div>
+      <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;" id="btn-kayit">Kayıt Ol →</button>
+    </div>
+    <button onclick="closeAuthModal()" style="width:100%;margin-top:10px;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;padding:8px;">İptal</button>
+  </div>
+</div>
+
+<!-- UZMAN GİRİŞ MODAL -->
+<div class="modal-overlay" id="uzman-login-modal">
+  <div class="modal-box">
+    <h2>Uzman Girişi</h2>
+    <p>Danışman panelinize erişmek için giriş yapın.</p>
+    <div class="form-group"><label>E-posta</label><input type="email" id="uzman-email"></div>
+    <div class="form-group"><label>Şifre</label><input type="password" id="uzman-sifre" placeholder="Şifreniz"></div>
+    <div class="error-msg" id="uzman-hata"></div>
+    <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;" onclick="uzmanGiris()">Giriş →</button>
+    <button onclick="closeUzmanLogin()" style="width:100%;margin-top:10px;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;padding:8px;">İptal</button>
+  </div>
+</div>
+
+<!-- RAPOR MODAL -->
+<div class="modal-overlay" id="rapor-modal">
+  <div class="modal-box" style="max-width:520px;">
+    <!-- ADIM 1: Gün seç -->
+    <div id="rapor-adim1">
+      <h2>📋 Rapor Oluştur</h2>
+      <p>Hangi günleri rapora eklemek istiyorsunuz?</p>
+      <div id="rapor-gun-list"></div>
+      <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;margin-top:6px;" onclick="raporOlustur()">Rapor Oluştur →</button>
+      <button onclick="raporModalKapat()" style="width:100%;margin-top:8px;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;padding:8px;">İptal</button>
+    </div>
+    <!-- ADIM 2: Raporu gör ve gönder -->
+    <div id="rapor-adim2" style="display:none;">
+      <h2>📤 Rapor Hazır</h2>
+      <p style="margin-bottom:10px;">Raporu aşağıda görebilirsiniz. WhatsApp butonu ile uzmanınıza gönderin.</p>
+      <textarea id="rapor-onizleme" readonly style="min-height:220px;background:#F5F0EA;border:1.5px solid var(--border);border-radius:10px;padding:12px;font-size:12px;line-height:1.6;color:var(--text-main);font-family:monospace;width:100%;resize:vertical;"></textarea>
+      <a id="rapor-wa-link" href="#" target="_blank" rel="noopener"
+        class="btn-rapor" style="display:flex;width:100%;text-align:center;justify-content:center;border-radius:10px;padding:14px;margin-top:10px;text-decoration:none;">
+        💬 WhatsApp ile Gönder
+      </a>
+      <button onclick="raporGeriDon()" style="width:100%;margin-top:8px;background:none;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;padding:8px;">← Geri Dön</button>
+      <button onclick="raporModalKapat()" style="width:100%;margin-top:6px;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-soft);cursor:pointer;padding:6px;">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- AİLE PORTALI -->
+<div id="screen-portal" class="screen">
+  <div class="portal-header">
+    <div class="portal-logo">🌙</div>
+    <div class="portal-header-text">
+      <h1>Uzman Anne Rehberi</h1>
+      <p>Uyku Eğitimi Günlüğü</p>
+    </div>
+    <button class="btn-cikis" onclick="aileCikis()">Çıkış</button>
+  </div>
+
+  <div class="portal-layout">
+    <!-- Sol: Geçmiş günlükler -->
+    <div class="gecmis-sidebar">
+      <h3>📋 Günlükler</h3>
+      <div id="gecmis-list"></div>
+    </div>
+
+    <!-- Sağ: Editor -->
+    <div class="gunluk-editor-area">
+
+      <div id="bebek-bilgi-banner" class="bebek-bilgi-card" style="display:none;">
+        <div class="bebek-avatar">👶</div>
+        <div class="bebek-bilgi-text">
+          <strong id="banner-bebek-ad">—</strong>
+          <span id="banner-anne-ad">—</span>
+          <span id="banner-dogum">—</span>
+        </div>
+      </div>
+
+      <div id="gunluk-editor" style="display:none;">
+        <!-- Tarih başlık -->
+        <div class="editor-header">
+          <div class="editor-header-left">
+            <div class="editor-tarih-label" id="aktif-tarih-label">Bugün</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <input type="date" id="aktif-tarih-input" class="editor-tarih-input" onchange="tarihDegistir()">
+              <span style="font-size:12px;color:var(--text-soft);">farklı gün seçin</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SABAH -->
+        <div class="form-card">
+          <h3>🌅 Sabah Uyanma</h3>
+          <div class="form-group" style="max-width:160px;">
+            <label>Sabah uyanma saati</label>
+            <input type="text" id="sabah" placeholder="06:30" inputmode="numeric"
+              oninput="formatSaatInput(this);calcUyanikSureler()"
+              onblur="formatSaatInput(this,true);calcUyanikSureler()"
+              style="font-weight:600;color:#5C4A3A;">
+          </div>
+          <div id="sabah-uyanik" style="display:none;margin-top:6px;"></div>
+        </div>
+
+        <!-- GÜNDÜZ -->
+        <div class="form-card">
+          <h3>☀️ Gündüz Uykuları</h3>
+          <div id="gunduz-list"></div>
+          <button type="button" class="btn-add-uyku" onclick="addGunduzUyku()">+ Uyku Ekle</button>
+        </div>
+
+        <!-- GECE -->
+        <div class="form-card">
+          <h3>🌙 Gece Uykusu</h3>
+          <div class="time-group" style="margin-bottom:12px;">
+            <div class="form-group"><label>Yatış saati</label>
+              <input type="text" id="yatis" placeholder="20:00" inputmode="numeric"
+                oninput="formatSaatInput(this);calcGece()"
+                onblur="formatSaatInput(this,true);calcGece()">
+            </div>
+            <div class="form-group"><label>Sabah kalkış saati</label>
+              <input type="text" id="kalkis" placeholder="07:00" inputmode="numeric"
+                oninput="formatSaatInput(this);calcGece()"
+                onblur="formatSaatInput(this,true);calcGece()">
+            </div>
+            <div class="form-group"><label>Toplam gece uykusu</label>
+              <input type="text" id="gece-sure" readonly placeholder="Otomatik" style="background:#F5F0EA;color:var(--mid-brown);">
+            </div>
+          </div>
+          <label style="font-size:12.5px;color:var(--mid-brown);font-weight:500;display:block;margin-bottom:8px;">Gece Ara Uyanmaları</label>
+          <div id="uyanma-list"></div>
+          <button type="button" class="btn-add-uyku" onclick="addUyanma()" style="margin-top:6px;">+ Uyanma Ekle</button>
+        </div>
+
+        <!-- NOTLAR -->
+        <div class="form-card">
+          <h3>📝 Genel Notlar</h3>
+          <textarea id="genel-not" style="min-height:80px;" placeholder="O güne ait önemli gözlemler, huysuzluk, hastalık vb."></textarea>
+        </div>
+
+        <!-- BUTONLAR -->
+        <div class="action-bar">
+          <button class="btn-kaydet" id="btn-kaydet" onclick="gunlukKaydet()">💾 Kaydet</button>
+          <button class="btn-rapor" onclick="raporModalAc()">📤 Rapor Gönder</button>
+        </div>
+        <div class="save-status" id="save-status">✓ Kaydedildi</div>
+      </div>
+
+      <!-- Boş durum -->
+      <div id="bos-durum" style="text-align:center;padding:60px 20px;color:var(--text-soft);">
+        <div style="font-size:48px;margin-bottom:16px;">📓</div>
+        <p style="font-size:14px;">Günlük yükleniyor...</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- UZMAN DASHBOARD -->
+<div id="screen-dashboard" class="screen">
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="dash-logo">🌙</div>
+      <div>
+        <div class="dash-title">Uzman Anne Rehberi — Uzman Paneli</div>
+        <div class="dash-subtitle">Uyku Eğitimi Günlük Takip Sistemi</div>
+      </div>
+    </div>
+    <button onclick="uzmanCikis()" style="background:rgba(255,255,255,0.1);color:rgba(250,247,242,0.7);border:1.5px solid rgba(255,255,255,0.15);padding:10px 16px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">Çıkış</button>
+  </div>
+
+  <div class="dash-content">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Toplam Aile</div><div class="stat-value" id="stat-toplam">—</div><div class="stat-sub">Kayıtlı</div></div>
+      <div class="stat-card"><div class="stat-label">Günlük Giren</div><div class="stat-value" id="stat-aktif" style="color:var(--sage)">—</div><div class="stat-sub">En az 1 gün</div></div>
+      <div class="stat-card"><div class="stat-label">Son Kayıt</div><div class="stat-value" id="stat-son" style="font-size:15px;padding-top:8px;">—</div><div class="stat-sub" id="stat-son-sub">—</div></div>
+    </div>
+
+    <div id="uzman-list-section">
+      <div class="search-bar-wrap">
+        <input type="text" id="uzman-search" placeholder="🔍  Bebek adı veya anne adıyla ara..." oninput="searchAileler(this.value)">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <h2 style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--deep-brown);">Aileler</h2>
+        <button onclick="uzmanLoadAileler()" style="background:none;border:1.5px solid var(--border);padding:7px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-soft);cursor:pointer;">🔄 Yenile</button>
+      </div>
+      <div class="aile-list" id="aile-list"></div>
+    </div>
+
+    <div class="uzman-detail" id="uzman-detail">
+      <div class="detail-back" onclick="uzmanBackToList()">← Listeye Dön</div>
+      <div id="uzman-detail-content"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
