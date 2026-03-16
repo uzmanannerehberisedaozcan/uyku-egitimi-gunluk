@@ -603,6 +603,7 @@ function renderAileler(liste) {
       <button onclick="event.stopPropagation();aileSil('${a.id}','${a.bebekAd}')" style="margin-right:14px;background:#FFF0F0;border:1px solid #E8B4B4;color:#C05050;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">🗑 Sil</button>
     </div>`;
   }).join('');
+}
 
 function searchAileler(q) {
   const s=q.trim().toLowerCase();
