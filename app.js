@@ -4,7 +4,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, addDoc, getDocs,
-  doc, updateDoc, serverTimestamp, query, where, getDoc, setDoc
+  doc, updateDoc, serverTimestamp, query, where, getDoc, setDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -594,13 +594,15 @@ function renderAileler(liste) {
   le.innerHTML=l.map(a=>{
     const gs=Object.keys(a.gunlukler).length;
     const ds=a.dogumTarihi?new Date(a.dogumTarihi+'T00:00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}):'—';
-    return `<div class="aile-card" onclick="uzmanShowDetail('${a.id}')">
-      <div class="aile-avatar">${a.bebekAd.charAt(0).toUpperCase()}</div>
-      <div class="aile-info"><strong>${a.bebekAd}</strong><span>${a.anneAd}</span><span style="font-size:11px;color:#9B8878;">📅 ${ds}</span></div>
-      <div class="aile-meta"><div class="gunluk-sayac">📓 ${gs} gün</div><div style="margin-top:5px;font-size:11px;">${a.tarih?a.tarih.toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'}):''}</div></div>
+    return `<div class="aile-card" style="display:flex;align-items:center;">
+      <div style="flex:1;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="uzmanShowDetail('${a.id}')">
+        <div class="aile-avatar">${a.bebekAd.charAt(0).toUpperCase()}</div>
+        <div class="aile-info"><strong>${a.bebekAd}</strong><span>${a.anneAd}</span><span style="font-size:11px;color:#9B8878;">📅 ${ds}</span></div>
+        <div class="aile-meta"><div class="gunluk-sayac">📓 ${gs} gün</div><div style="margin-top:5px;font-size:11px;">${a.tarih?a.tarih.toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'}):''}</div></div>
+      </div>
+      <button onclick="event.stopPropagation();aileSil('${a.id}','${a.bebekAd}')" style="margin-right:14px;background:#FFF0F0;border:1px solid #E8B4B4;color:#C05050;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">🗑 Sil</button>
     </div>`;
   }).join('');
-}
 
 function searchAileler(q) {
   const s=q.trim().toLowerCase();
@@ -676,6 +678,18 @@ function uzmanSwitchDay(tarih, btn) {
   el('uzman-day-'+tarih.replace(/-/g,''))?.classList.add('active');
 }
 
+
+async function aileSil(id, ad) {
+  if (!confirm(ad + '\n\nBu aileyi silmek istediğinize emin misiniz?\nTüm günlük verileri de silinecek!')) return;
+  try {
+    const gs = await getDocs(collection(db,'egitim_profilleri',id,'gunlukler'));
+    for (const d of gs.docs) { await deleteDoc(d.ref); }
+    await deleteDoc(doc(db,'egitim_profilleri',id));
+    showToast('✓ Aile silindi.');
+    uzmanLoadAileler();
+  } catch(e) { showToast('❌ Hata: '+e.message); }
+}
+
 function uzmanBackToList() {
   hide('uzman-detail'); el('uzman-detail').classList.remove('visible'); show('uzman-list-section');
 }
@@ -701,4 +715,4 @@ window.calcGunduz=calcGunduz; window.calcGece=calcGece; window.calcUyanikSureler
 window.addUyanma=addUyanma; window.formatSaatInput=formatSaatInput; window.saatInput=saatInput;
 window.uzmanLoadAileler=uzmanLoadAileler; window.uzmanShowDetail=uzmanShowDetail;
 window.uzmanSwitchDay=uzmanSwitchDay; window.uzmanBackToList=uzmanBackToList;
-window.searchAileler=searchAileler; window.el=el;
+window.searchAileler=searchAileler; window.aileSil=aileSil; window.el=el;
