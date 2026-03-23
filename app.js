@@ -353,8 +353,8 @@ function gunlukTopla() {
   })).filter(u=>u.saat||u.not):[];
   // Rüya öğünleri
   const ruyaList=el('ruya-list');
-  const ruyaOgunleri=ruyaList?[...ruyaList.children].map(r=>({
-    saat:el(r.id+'-saat')?.value||'',
+  const ruyaOgunleri=ruyaList?[...ruyaList.querySelectorAll('input[type=text]')].map(inp=>({
+    saat:inp.value?.trim()||'',
   })).filter(u=>u.saat):[];
   return {
     sabah:el('sabah')?.value||'',
@@ -848,16 +848,25 @@ function uzmanNotDuzenle(id) {
 async function uzmanNotKaydet(id) {
   const modal=el('not-modal-'+id); if(!modal) return;
   const secili=[...modal.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value);
-  const diger=el('not-diger-'+id)?.value?.trim()||'';
-  const yaplacaklar=el('not-yaplacaklar-'+id)?.value?.trim()||'';
+  const digerEl=modal.querySelector('#not-diger-'+id);
+  const yaplacaklarEl=modal.querySelector('#not-yaplacaklar-'+id);
+  const diger=digerEl?.value?.trim()||'';
+  const yaplacaklar=yaplacaklarEl?.value?.trim()||'';
   const veri={mevcutDurum:secili, diger, yaplacaklar};
+  const btn=modal.querySelector('button[onclick*="uzmanNotKaydet"]');
+  if(btn){btn.textContent='⏳ Kaydediliyor...';btn.disabled=true;}
   try {
     await setDoc(doc(db,'uzman_notlari',id), veri);
     const a=uzmanAileler.find(x=>x.id===id);
     if(a) a.uzmanNot=veri;
     modal.style.display='none';
     showToast('✓ Notlar kaydedildi!');
-  } catch(e){ showToast('❌ Hata: '+e.message); }
+  } catch(e){
+    console.error('Not kayıt hatası:',e);
+    showToast('❌ Kayıt hatası: '+e.message);
+  } finally {
+    if(btn){btn.textContent='💾 Notları Kaydet';btn.disabled=false;}
+  }
 }
 
 function uzmanDuzenleAc(id) {
