@@ -35,7 +35,9 @@ let uzmanAileler   = [];
 let gunduzCounter  = 0;
 let uyanmaCounter  = 0;
 let ruyaCounter    = 0;
-let aktifSekme     = 'aktif'; // 'aktif' | 'mezun' | 'yarim'
+let aktifSekme     = 'bugun'; // 'bugun' | 'aktif' | 'mezun' | 'yarim'
+let aileProfil     = null;    // ailenin kendi profil kaydı (paket, başlangıç, dondurma...)
+let raporSecili    = [];      // rapora eklenen günler
 
 // ============================================================
 // YARDIMCILAR
@@ -81,8 +83,92 @@ function tarihKisa(ds) {
 }
 
 function bugunStr() {
-  const d=new Date();
+  return tarihStr(new Date());
+}
+function tarihStr(d) {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function tsDate(v) {
+  if (!v) return null;
+  if (v.toDate) return v.toDate();
+  if (v instanceof Date) return v;
+  const d=new Date(v); return isNaN(d)?null:d;
+}
+function saatStr(d) {
+  return d ? String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0') : '';
+}
+
+// ============================================================
+// PAKET TAKİBİ
+// ============================================================
+// takipGunleri: 1=Pazartesi ... 5=Cuma. saatSiniri: günlüğün 08.00–11.00 arasında iletilmesi
+const PAKETLER = {
+  kapsamli: { ad:'Kapsamlı Değerlendirme', renk:'#C9A227', gorusme:2,    gun:28,   takipGunleri:[],          saatSiniri:true  },
+  standart: { ad:'Standart',               renk:'#9B7EC8', gorusme:12,   gun:28,   takipGunleri:[1,3,5],     saatSiniri:true  },
+  full:     { ad:'Full',                   renk:'#D04545', gorusme:20,   gun:28,   takipGunleri:[1,2,3,4,5], saatSiniri:true  },
+  vip:      { ad:'VIP',                    renk:'#4CAF7D', gorusme:20,   gun:28,   takipGunleri:[1,2,3,4,5], saatSiniri:false },
+  diger:    { ad:'Diğer',                  renk:'#9A9A9A', gorusme:null, gun:null, takipGunleri:[],          saatSiniri:true  },
+};
+const PAKET_SIRASI = ['kapsamli','standart','full','vip','diger'];
+const SEKRETERLIK_WA = '905304105057';
+const GEC_SAAT = 11; // 11.00'den sonra iletilen günlük "geç" sayılır
+
+function etkinPaket(p) { const k=p?.paket||p?.paket_secim; return PAKETLER[k]?k:null; }
+function paketTag(k, onayli=true) {
+  const pk=PAKETLER[k]; if(!pk) return '<span class="paket-tag" style="background:#C9BBAE;">Paket yok</span>';
+  return `<span class="paket-tag" style="background:${pk.renk};${onayli?'':'opacity:.65;'}" title="${onayli?'Onaylı paket':'Aile seçti, onay bekliyor'}">${pk.ad}${onayli?'':' ?'}</span>`;
+}
+function gorusmeHakki(p) {
+  const k=etkinPaket(p); if(!k) return null;
+  if (k==='diger') return Number(p.ozel_gorusme_hakki)||null;
+  return PAKETLER[k].gorusme;
+}
+function sureGun(p) {
+  const k=etkinPaket(p); if(!k) return null;
+  if (k==='diger') return Number(p.ozel_gun_sayisi)||null;
+  return PAKETLER[k].gun;
+}
+function kullanilanGorusme(gunlukler) {
+  return Object.values(gunlukler||{}).filter(g=>g&&g.arandi).length;
+}
+function gunFarki(a, b) { // b - a, gün olarak (YYYY-MM-DD)
+  return Math.round((new Date(b+'T12:00:00') - new Date(a+'T12:00:00'))/86400000);
+}
+function donmusMu(p) {
+  const d=p?.donmalar||[]; return d.length>0 && !d[d.length-1].bit;
+}
+function donmaGunleri(p, bugun=bugunStr()) {
+  return (p?.donmalar||[]).reduce((t,d)=>t+Math.max(0, gunFarki(d.bas, d.bit||bugun)), 0);
+}
+// Başlangıçtan bu yana geçen danışmanlık günü (başlangıç günü 1. gün; donmuş günler sayılmaz)
+function gecenGun(p, bugun=bugunStr()) {
+  if (!p?.baslangic_tarihi) return null;
+  const f=gunFarki(p.baslangic_tarihi, bugun);
+  if (f<0) return 0;
+  return Math.max(1, f+1-donmaGunleri(p, bugun));
+}
+function bitisTarihi(p) {
+  const s=sureGun(p); if(!p?.baslangic_tarihi||!s) return null;
+  const d=new Date(p.baslangic_tarihi+'T12:00:00');
+  d.setDate(d.getDate()+s-1+donmaGunleri(p));
+  return tarihStr(d);
+}
+function sureDolduMu(p) {
+  const s=sureGun(p), g=gecenGun(p);
+  return !!s && g!=null && g>s && !donmusMu(p) && (p.durum||'aktif')==='aktif';
+}
+function takipGunuMu(k, tarih=bugunStr()) {
+  const gun=new Date(tarih+'T12:00:00').getDay();
+  return !!PAKETLER[k] && PAKETLER[k].takipGunleri.includes(gun);
+}
+function takipGunleriMetni(k) {
+  if (k==='standart') return 'takip günlerinizde (<b>Pazartesi, Çarşamba ve Cuma</b>)';
+  if (k==='full'||k==='vip') return 'takip günlerinizde (<b>hafta içi her gün</b>, Pazartesi–Cuma)';
+  return 'danışmanınızın belirttiği takip günlerinde';
+}
+function raporZamanMetni(k) {
+  const saat = PAKETLER[k]?.saatSiniri===false ? '' : ' <b>08.00–11.00 arasında</b>';
+  return takipGunleriMetni(k)+saat;
 }
 
 // ============================================================
@@ -116,19 +202,23 @@ el('btn-kayit')?.addEventListener('click', async () => {
   const anneAd=el('reg-anne-ad').value.trim(), bebekAd=el('reg-bebek-ad').value.trim();
   const dogumT=el('reg-dogum-tarihi').value, email=el('reg-email').value.trim();
   const sifre=el('reg-sifre').value, sifre2=el('reg-sifre2').value;
+  const paketSecim=el('reg-paket')?.value||'';
   hide('reg-hata');
   if (!anneAd||!bebekAd||!dogumT||!email||!sifre) { show('reg-hata'); el('reg-hata').textContent='Tüm alanları doldurun.'; return; }
+  if (!paketSecim) { show('reg-hata'); el('reg-hata').textContent='Lütfen danışmanlık paketinizi seçin.'; return; }
   if (sifre.length<6) { show('reg-hata'); el('reg-hata').textContent='Şifre en az 6 karakter.'; return; }
   if (sifre!==sifre2) { show('reg-hata'); el('reg-hata').textContent='Şifreler eşleşmiyor.'; return; }
   const btn=el('btn-kayit'); btn.textContent='⏳...'; btn.disabled=true;
   try {
     const cred=await createUserWithEmailAndPassword(auth,email,sifre);
-    const ref=await addDoc(collection(db,'egitim_profilleri'),{
+    const profilVeri={
       tarih:serverTimestamp(), uid:cred.user.uid, email,
-      anne_ad:anneAd, bebek_ad:bebekAd, dogum_tarihi:dogumT,
-    });
+      anne_ad:anneAd, bebek_ad:bebekAd, dogum_tarihi:dogumT, paket_secim:paketSecim,
+    };
+    const ref=await addDoc(collection(db,'egitim_profilleri'),profilVeri);
     activeProfilId=ref.id;
     aileBilgi={anneAd,bebekAd,dogumTarihi:dogumT,email};
+    aileProfil={...profilVeri, tarih:new Date()};
     gunlukCache={};
     closeAuthModal();
     portalYukle();
@@ -194,6 +284,7 @@ onAuthStateChanged(auth, async (user) => {
     activeProfilId=docSnap.id;
     const data=docSnap.data();
     aileBilgi={anneAd:data.anne_ad||'',bebekAd:data.bebek_ad||'',dogumTarihi:data.dogum_tarihi||'',email:data.email||''};
+    aileProfil=data;
     await gunluklerYukle();
     portalYukle();
   } catch(e) { console.error('Auth restore:',e); }
@@ -201,7 +292,7 @@ onAuthStateChanged(auth, async (user) => {
 
 function aileCikis() {
   signOut(auth).then(()=>{
-    activeProfilId=null; aileBilgi=null; gunlukCache={}; aktifTarih=null;
+    activeProfilId=null; aileBilgi=null; aileProfil=null; gunlukCache={}; aktifTarih=null;
     showScreen('landing');
   });
 }
@@ -220,10 +311,13 @@ async function gunluklerYukle() {
 
 async function gunlukFirebaseKaydet(tarih, veri) {
   if (!activeProfilId) return;
-  await setDoc(doc(db,'egitim_profilleri',activeProfilId,'gunlukler',tarih),{
-    ...veri, tarih, guncelleme:serverTimestamp(),
-  });
-  gunlukCache[tarih]=veri;
+  // merge: uzmanın işaretleri (arandı vb.) ailenin kaydıyla silinmesin
+  const ek = { tarih, guncelleme:serverTimestamp() };
+  const ilkKayit = !gunlukCache[tarih]?.ilk_kayit;
+  if (ilkKayit) ek.ilk_kayit = serverTimestamp();
+  await setDoc(doc(db,'egitim_profilleri',activeProfilId,'gunlukler',tarih),{ ...veri, ...ek }, {merge:true});
+  const simdi = new Date();
+  gunlukCache[tarih]={ ...(gunlukCache[tarih]||{}), ...veri, tarih, guncelleme:simdi, ...(ilkKayit?{ilk_kayit:simdi}:{}) };
 }
 
 // ============================================================
@@ -242,6 +336,88 @@ function portalYukle() {
   }
   renderGecmisList();
   gunlukAc(bugunStr());
+  aileUyarilariGoster();
+  aileIlkGirisAdimlari();
+}
+
+// ============================================================
+// AİLE: PAKET NOTLARI, PAKET SEÇİMİ, BİLGİLENDİRME
+// ============================================================
+function aileUyarilariGoster() {
+  const kutu=el('aile-uyari'); if(!kutu||!aileProfil) return;
+  const k=etkinPaket(aileProfil);
+  let html='';
+  if (donmusMu(aileProfil)) {
+    html+=`<div class="uyari uyari-mavi">⏸ Paketiniz şu an <b>dondurulmuştur</b>. Bu sürede danışmanlık süreniz işlemez.</div>`;
+  }
+  const hak=gorusmeHakki(aileProfil);
+  if (hak) {
+    const kalan=hak-kullanilanGorusme(gunlukCache);
+    if (kalan<=0) {
+      const wa='https://wa.me/'+SEKRETERLIK_WA+'?text='+encodeURIComponent('Merhaba, '+(aileBilgi?.bebekAd||'')+' için danışmanlık paketimdeki görüşme sayısı bitti. Bilgi almak istiyorum.');
+      html+=`<div class="uyari uyari-kirmizi">Danışmanlık paketinizdeki görüşme sayısı bitmiştir. Lütfen sekreterlikle iletişime geçin.
+        <a class="btn-wa" href="${wa}" target="_blank" rel="noopener">💬 Sekreterliğe WhatsApp ile yazın</a></div>`;
+    } else if (kalan===1) {
+      html+=`<div class="uyari uyari-sari">📞 Paketinizde <b>son 1 görüşme hakkınız</b> kaldı.</div>`;
+    }
+  }
+  kutu.innerHTML=html;
+}
+
+function aileIlkGirisAdimlari() {
+  if (!aileProfil) return;
+  if (!etkinPaket(aileProfil)) { paketModalAc(); return; }
+  if (!aileProfil.bilgilendirme_okundu) bilgiModalAc();
+}
+
+function paketModalAc() {
+  el('paket-secenekler').innerHTML=PAKET_SIRASI.map(k=>{
+    const pk=PAKETLER[k];
+    const ek=pk.gorusme?pk.gorusme+' görüşme':'';
+    return `<label class="paket-opt"><input type="radio" name="paket-secim" value="${k}"><span class="renk" style="background:${pk.renk}"></span>${pk.ad}<span class="ek">${ek}</span></label>`;
+  }).join('');
+  hide('paket-hata');
+  el('paket-modal')?.classList.add('open');
+}
+
+async function paketSeciminiKaydet() {
+  const sec=document.querySelector('input[name="paket-secim"]:checked')?.value;
+  if (!sec) { show('paket-hata'); el('paket-hata').textContent='Lütfen bir paket seçin.'; return; }
+  try {
+    await updateDoc(doc(db,'egitim_profilleri',activeProfilId),{paket_secim:sec});
+    aileProfil={...aileProfil, paket_secim:sec};
+    el('paket-modal')?.classList.remove('open');
+    aileUyarilariGoster();
+    if (!aileProfil.bilgilendirme_okundu) bilgiModalAc();
+  } catch(e) { show('paket-hata'); el('paket-hata').textContent='Kaydedilemedi: '+e.message; }
+}
+
+function bilgiModalAc() {
+  const k=etkinPaket(aileProfil);
+  const saatli=PAKETLER[k]?.saatSiniri!==false;
+  el('bilgi-metni').innerHTML=
+    `<p class="bilgi-madde"><b>1.</b> Her gün günlüğünüzü doldurup <b>Kaydet</b>'e basın.</p>`
+   +`<p class="bilgi-madde"><b>2.</b> Ardından ${raporZamanMetni(k)} <span style="color:#1E8A4A;font-weight:600;">"WhatsApp ile Rapor Gönder"</span> butonuyla raporunuzu <b>mutlaka</b> bize iletin.</p>`
+   +`<p class="bilgi-madde"><b>3.</b> Paketiniz dondurulmadığı sürece, ${saatli?'<b>08.00–11.00 arasında günlük iletmediğiniz günler de</b>':'<b>takip gününde günlük iletmediğiniz günler de</b>'} danışmanlık sürenizden sayılır ve o günün takibi yapılmış kabul edilir.</p>`;
+  el('bilgi-modal')?.classList.add('open');
+}
+
+async function bilgilendirmeOkundu() {
+  try {
+    await updateDoc(doc(db,'egitim_profilleri',activeProfilId),{bilgilendirme_okundu:serverTimestamp()});
+    aileProfil={...aileProfil, bilgilendirme_okundu:new Date()};
+  } catch(e) { console.error('Bilgilendirme kaydı:',e); }
+  el('bilgi-modal')?.classList.remove('open');
+}
+
+function kayitSonrasiGoster(tarih) {
+  const kutu=el('kayit-sonrasi'); if(!kutu) return;
+  const g=gunlukCache[tarih]; const d=tsDate(g?.guncelleme)||new Date();
+  const k=etkinPaket(aileProfil);
+  kutu.innerHTML=`<div class="uyari uyari-yesil" style="margin-bottom:8px;">✓ <b>Günlüğünüz kaydedildi</b> · ${tarihKisa(tarih)}, ${saatStr(d)}</div>
+    <div class="uyari uyari-sari">Son adım: Raporunuzu ${raporZamanMetni(k)} WhatsApp'tan <b>mutlaka</b> iletin.
+      <button class="btn-wa" onclick="raporModalAc()">📤 WhatsApp ile Rapor Gönder</button></div>`;
+  kutu.style.display='block';
 }
 
 // ============================================================
@@ -259,11 +435,25 @@ function renderGecmisList() {
     const geceSure=g?.gece?.sure||'';
     const gunduzSayi=(g?.gunduz||[]).length;
     const aktifCls=t===aktifTarih?'gecmis-item aktif':'gecmis-item';
+    const rapor=tsDate(g?.rapor_tiklama);
     return `<div class="${aktifCls}" onclick="gunlukAc('${t}')">
       <div class="gecmis-tarih">${tarihTR(t)}</div>
-      <div class="gecmis-ozet">${gunduzSayi>0?'☀️ '+gunduzSayi+' gündüz':''} ${geceSure?'🌙 '+geceSure:''}</div>
+      <div class="gecmis-ozet">${gunduzSayi>0?'☀️ '+gunduzSayi+' gündüz':''} ${geceSure?'🌙 '+geceSure:''}${rapor?' · <span style="color:#3F6B4A;">📤 rapor '+saatStr(rapor)+'</span>':''}</div>
     </div>`;
   }).join('');
+  // Telefonda uzun liste editörü aşağı itmesin
+  const tumuBtn=el('gecmis-tumu');
+  if (tarihler.length>3) {
+    if (!listEl.dataset.acik) listEl.classList.add('kisa');
+    if (tumuBtn) { tumuBtn.textContent=listEl.classList.contains('kisa')?`Tüm günleri göster (${tarihler.length})`:'Daha az göster'; tumuBtn.style.removeProperty('visibility'); }
+  } else if (tumuBtn) tumuBtn.style.visibility='hidden';
+}
+
+function gecmisTumunuGoster() {
+  const listEl=el('gecmis-list'); if(!listEl) return;
+  listEl.classList.toggle('kisa');
+  listEl.dataset.acik=listEl.classList.contains('kisa')?'':'1';
+  renderGecmisList();
 }
 
 // ============================================================
@@ -277,6 +467,8 @@ function gunlukAc(tarih) {
   formYukle(gunlukCache[tarih]||{});
   renderGecmisList();
   show('gunluk-editor');
+  hide('bos-durum');
+  hide('kayit-sonrasi');
 }
 
 function tarihDegistir() {
@@ -293,6 +485,7 @@ function formSifirla() {
   gunduzCounter=0; uyanmaCounter=0; ruyaCounter=0;
   ['sabah','yatis','kalkis','gece-sure'].forEach(id=>{ const i=el(id); if(i) i.value=''; });
   const gn=el('genel-not'); if(gn) gn.value='';
+  const ad=el('aksam-dalis'); if(ad) ad.value='';
   const rl=el('ruya-list'); if(rl) rl.innerHTML='';
   const acb=el('arandi-cb'); if(acb) acb.checked=false;
 }
@@ -303,6 +496,7 @@ function formYukle(g) {
   if (el('yatis')&&g.gece?.yatis) el('yatis').value=g.gece.yatis;
   if (el('kalkis')&&g.gece?.kalkis) el('kalkis').value=g.gece.kalkis;
   if (el('genel-not')&&g.genelNot) el('genel-not').value=g.genelNot;
+  if (el('aksam-dalis')&&g.aksamDalis) el('aksam-dalis').value=g.aksamDalis;
   calcGece();
   const gl=el('gunduz-list');
   if (gl) {
@@ -371,6 +565,7 @@ function gunlukTopla() {
     sabah:el('sabah')?.value||'',
     gunduz,
     gece:{yatis:el('yatis')?.value||'',kalkis:el('kalkis')?.value||'',sure:el('gece-sure')?.value||''},
+    aksamDalis:el('aksam-dalis')?.value?.trim()||'',
     uyanmalar,
     ruyaOgunleri,
     genelNot:el('genel-not')?.value?.trim()||'',
@@ -388,9 +583,9 @@ async function gunlukKaydet() {
   try {
     await gunlukFirebaseKaydet(aktifTarih, gunlukTopla());
     renderGecmisList();
-    const s=el('save-status');
-    if(s){s.classList.add('show');setTimeout(()=>s.classList.remove('show'),3000);}
     showToast('✓ Kaydedildi!');
+    kayitSonrasiGoster(aktifTarih);
+    el('kayit-sonrasi')?.scrollIntoView({behavior:'smooth',block:'center'});
   } catch(e) {
     showToast('❌ Hata: '+e.message);
   } finally {
@@ -439,6 +634,7 @@ function raporMesajOlustur(secili) {
     msg+=`\n🌙 *Gece:*\n`;
     if (g.gece?.yatis) msg+=`  ${g.gece.yatis} → ${g.gece.kalkis||'?'}${g.gece.sure?' ('+g.gece.sure+')':''}\n`;
     else msg+=`  Girilmedi\n`;
+    if (g.aksamDalis) msg+=`  😴 Uykuya dalış: ${g.aksamDalis}\n`;
     if ((g.uyanmalar||[]).length>0) {
       msg+=`\n⬆️ *Uyanmalar:*\n`;
       g.uyanmalar.forEach((u,i)=>{
@@ -460,6 +656,7 @@ async function raporOlustur() {
     try { await gunlukFirebaseKaydet(aktifTarih,gunlukTopla()); } catch(e){}
   }
   const msg = raporMesajOlustur(secili);
+  raporSecili = secili;
   // Önizleme textarea'ya yaz
   el('rapor-onizleme').value = msg;
   // WhatsApp linkini hazırla
@@ -477,6 +674,20 @@ function raporGeriDon() {
 function raporGonder() {
   // Artık kullanılmıyor, eski referanslar için boş bırakıldı
 }
+
+// WhatsApp butonuna basıldığında, rapora eklenen günlere gönderim saatini işle.
+// (Mesajın WhatsApp'ta gerçekten gönderildiği buradan görülemez.)
+async function raporTiklamaKaydet() {
+  if (!activeProfilId || raporSecili.length===0) return;
+  const simdi=new Date();
+  await Promise.all(raporSecili.map(async t=>{
+    try {
+      await setDoc(doc(db,'egitim_profilleri',activeProfilId,'gunlukler',t),{rapor_tiklama:serverTimestamp()},{merge:true});
+      gunlukCache[t]={...(gunlukCache[t]||{}), rapor_tiklama:simdi};
+    } catch(e) { console.warn('Rapor saati kaydedilemedi:',e); }
+  }));
+}
+el('rapor-wa-link')?.addEventListener('click', ()=>{ raporTiklamaKaydet(); });
 
 // ============================================================
 // SAAT (gece düzeltme sorusu KALDIRILDI)
@@ -508,7 +719,7 @@ function formatSaatInput(inp, blur) {
 }
 
 function saatInput(id, fn) {
-  return '<input type="text" id="'+id+'" placeholder="08:30" inputmode="numeric"'
+  return '<input type="text" id="'+id+'" placeholder="örn. 08:30" inputmode="numeric"'
     +' oninput="formatSaatInput(this);'+(fn||'')+'"'
     +' onblur="formatSaatInput(this,true);'+(fn||'')+'">';
 }
@@ -631,6 +842,7 @@ async function uzmanLoadAileler() {
         dogumTarihi:d.dogum_tarihi||'', email:d.email||'',
         durum:d.durum||'aktif',
         gunlukler, tarih:d.tarih?.toDate?d.tarih.toDate():null, uzmanNot,
+        profil:d,
       };
     }));
     uzmanAileler = ailelerRaw;
@@ -641,7 +853,7 @@ async function uzmanLoadAileler() {
 
 function switchArsivTab(sekme) {
   aktifSekme = sekme;
-  ['aktif','mezun','yarim'].forEach(s => {
+  ['bugun','aktif','mezun','yarim'].forEach(s => {
     el('tab-'+s)?.classList.toggle('active', s===sekme);
   });
   const q = el('uzman-search')?.value?.trim()||'';
@@ -665,44 +877,149 @@ function updateUzmanStats() {
   }
 }
 
+function sekmeFiltresi() {
+  // "Bugün" sekmesi aktif aileleri kullanır
+  const durum = aktifSekme==='bugun' ? 'aktif' : aktifSekme;
+  return uzmanAileler.filter(a=>(a.durum||'aktif')===durum);
+}
+
+function sonGunlukMetni(a) {
+  const tarihler=Object.keys(a.gunlukler).filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t)).sort();
+  if (!tarihler.length) return 'Henüz günlük yok';
+  const son=tarihler[tarihler.length-1];
+  const f=gunFarki(son, bugunStr());
+  return 'Son günlük: '+(f===0?'bugün':f===1?'dün':tarihKisa(son));
+}
+
+function aileOzetSatiri(a) {
+  const p=a.profil||{};
+  const hak=gorusmeHakki(p), kul=kullanilanGorusme(a.gunlukler);
+  const sure=sureGun(p), gg=gecenGun(p);
+  let h='<div class="sayac-satir">';
+  h+=hak ? `<span>📞 <b>${kul} / ${hak}</b>${hak-kul>0?' · '+(hak-kul)+' kaldı':' · <span style="color:#C05050;">bitti</span>'}</span>` : `<span>📞 ${kul} görüşme</span>`;
+  if (sure && gg!=null) h+=`<span>📅 <b>Gün ${Math.min(gg,sure)} / ${sure}</b>${donmusMu(p)?' (duruyor)':gg>sure?' · <span style="color:#C05050;">süre doldu</span>':''}</span>`;
+  else if (sure) h+=`<span style="color:var(--text-soft);">📅 Başlamadı</span>`;
+  h+='</div>';
+  return h;
+}
+
 function renderAileler(liste) {
-  const filtre = liste || uzmanAileler.filter(a=>(a.durum||'aktif')===aktifSekme);
+  renderSureDoldu();
+  if (aktifSekme==='bugun' && !liste) { renderBugun(); return; }
+  const filtre = liste || sekmeFiltresi();
   const le=el('aile-list'); if(!le) return;
   if(filtre.length===0){
-    const mesajlar = {aktif:'Aktif danışan yok.',mezun:'Mezun danışan yok.',yarim:'Yarım kalan danışan yok.'};
+    const mesajlar = {bugun:'Aktif danışan yok.',aktif:'Aktif danışan yok.',mezun:'Mezun danışan yok.',yarim:'Yarım kalan danışan yok.'};
     le.innerHTML=`<div style="padding:20px;text-align:center;color:var(--text-soft);">${mesajlar[aktifSekme]||'Henüz aile yok.'}</div>`;
     return;
   }
   le.innerHTML=filtre.map(a=>{
-    const gs=Object.keys(a.gunlukler).length;
-    const ds=a.dogumTarihi?new Date(a.dogumTarihi+'T00:00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}):'—';
+    const p=a.profil||{};
+    const k=etkinPaket(p);
     const durumBadge = a.durum==='mezun'
       ? '<span class="durum-badge durum-mezun">🎓 Mezun</span>'
       : a.durum==='yarim'
       ? '<span class="durum-badge durum-yarim">⏸️ Yarım</span>'
-      : '<span class="durum-badge durum-aktif">✅ Aktif</span>';
-    return `<div class="aile-card" style="display:flex;align-items:center;">
-      <div style="flex:1;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="uzmanShowDetail('${a.id}')">
-        <div class="aile-avatar">${a.bebekAd.charAt(0).toUpperCase()}</div>
-        <div class="aile-info"><strong>${a.bebekAd}</strong><span>${a.anneAd}</span><span style="font-size:11px;color:#9B8878;">📅 ${ds}</span>${durumBadge}</div>
-        <div class="aile-meta"><div class="gunluk-sayac">📓 ${gs} gün</div><div style="margin-top:5px;font-size:11px;">${a.tarih?a.tarih.toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'}):''}</div></div>
+      : '';
+    return `<div class="aile-card" onclick="uzmanShowDetail('${a.id}')">
+      <div class="aile-avatar" style="${k?'background:'+PAKETLER[k].renk+';':''}">${a.bebekAd.charAt(0).toUpperCase()}</div>
+      <div class="aile-info" style="flex:1;min-width:0;">
+        <strong>${a.bebekAd} ${paketTag(k, !!p.paket)} ${donmusMu(p)?'<span class="donma-tag">⏸ Donduruldu</span>':''} ${durumBadge}</strong>
+        <span>${a.anneAd}${a.dogumTarihi?' · '+bebekYasi(a.dogumTarihi):''}</span>
+        ${aileOzetSatiri(a)}
+        <span style="font-size:11px;margin-top:3px;">${sonGunlukMetni(a)}</span>
       </div>
-      <button onclick="event.stopPropagation();aileSil('${a.id}','${a.bebekAd}')" style="margin-right:14px;background:#FFF0F0;border:1px solid #E8B4B4;color:#C05050;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">🗑 Sil</button>
     </div>`;
   }).join('');
 }
 
 function searchAileler(q) {
   const s=q.trim().toLowerCase();
-  const tabFiltre = uzmanAileler.filter(a=>(a.durum||'aktif')===aktifSekme);
-  if(!s){renderAileler(tabFiltre);return;}
+  if(!s){renderAileler();return;}
+  const tabFiltre = sekmeFiltresi();
   renderAileler(tabFiltre.filter(a=>a.bebekAd.toLowerCase().includes(s)||a.anneAd.toLowerCase().includes(s)));
 }
 
-function uzmanShowDetail(id) {
+// Süresi dolmuş aileler: uzmanın kararı için panelin üstünde gösterilir
+function renderSureDoldu() {
+  const kutu=el('sure-doldu'); if(!kutu) return;
+  const liste=uzmanAileler.filter(a=>sureDolduMu(a.profil||{}));
+  if (!liste.length || !['bugun','aktif'].includes(aktifSekme)) { kutu.innerHTML=''; return; }
+  kutu.innerHTML=`<div class="uyari uyari-sari"><b>Danışmanlık süresi dolanlar (${liste.length})</b>
+    ${liste.map(a=>{
+      const p=a.profil||{}, hak=gorusmeHakki(p);
+      return `<div class="bugun-satir" style="margin-top:8px;cursor:default;">
+        <div onclick="uzmanShowDetail('${a.id}')" style="cursor:pointer;"><b>${a.bebekAd}</b> <span style="font-size:12px;color:var(--text-soft);">· ${a.anneAd}</span>
+          <div style="font-size:11.5px;">${sureGun(p)} gün doldu${hak?' · 📞 '+kullanilanGorusme(a.gunlukler)+'/'+hak:''}</div></div>
+        <div class="sag" style="display:flex;gap:6px;">
+          <button class="mini-btn" onclick="durumDegistir('${a.id}','mezun')">🎓 Mezun</button>
+          <button class="mini-btn" onclick="durumDegistir('${a.id}','yarim')">⏸️ Yarım kaldı</button>
+        </div></div>`;
+    }).join('')}</div>`;
+}
+
+// Bir ailenin bugünkü hareketleri: günlük kaydı, rapor butonu, arandı
+function bugunHareketleri(a) {
+  const bugun=bugunStr();
+  let kayit=null, rapor=null, arandi=false;
+  for (const g of Object.values(a.gunlukler)) {
+    const gd=tsDate(g?.guncelleme), rd=tsDate(g?.rapor_tiklama), ad=tsDate(g?.arandi_zaman);
+    if (gd && tarihStr(gd)===bugun && (!kayit||gd>kayit)) kayit=gd;
+    if (rd && tarihStr(rd)===bugun && (!rapor||rd<rapor)) rapor=rd;
+    if (g?.arandi && ad && tarihStr(ad)===bugun) arandi=true;
+  }
+  return { kayit, rapor, arandi, geldi: !!(kayit||rapor) };
+}
+
+function renderBugun() {
+  const le=el('aile-list'); if(!le) return;
+  const bugun=bugunStr();
+  const haftaSonu=[0,6].includes(new Date(bugun+'T12:00:00').getDay());
+  const aktifler=uzmanAileler.filter(a=>(a.durum||'aktif')==='aktif');
+  const aranacak=[], arananlar=[], gelmeyen=[];
+  for (const a of aktifler) {
+    const h=bugunHareketleri(a), p=a.profil||{}, k=etkinPaket(p);
+    if (h.arandi) arananlar.push({a,h});
+    else if (h.geldi) aranacak.push({a,h});
+    else if (!haftaSonu && p.baslangic_tarihi && !donmusMu(p) && takipGunuMu(k, bugun) && !sureDolduMu(p)) gelmeyen.push({a,h});
+  }
+  const ilk=(h)=>h.rapor||h.kayit;
+  aranacak.sort((x,y)=>ilk(x.h)-ilk(y.h));
+  const satir=({a,h}, sagHtml)=>{
+    const p=a.profil||{}, k=etkinPaket(p), hak=gorusmeHakki(p), sure=sureGun(p), gg=gecenGun(p);
+    const alt=[hak?`📞 ${kullanilanGorusme(a.gunlukler)}/${hak}`:'', (sure&&gg!=null)?`Gün ${Math.min(gg,sure)}/${sure}`:''].filter(Boolean).join(' · ');
+    return `<div class="bugun-satir" onclick="uzmanShowDetail('${a.id}')">
+      <div class="aile-avatar" style="width:36px;height:36px;font-size:16px;${k?'background:'+PAKETLER[k].renk+';':''}">${a.bebekAd.charAt(0).toUpperCase()}</div>
+      <div><b>${a.bebekAd}</b> <span style="font-size:12px;color:var(--text-soft);">· ${a.anneAd}</span>${alt?`<div style="font-size:11.5px;">${alt}</div>`:''}</div>
+      <div class="sag">${sagHtml}</div></div>`;
+  };
+  const saatHtml=({a,h})=>{
+    const k=etkinPaket(a.profil||{});
+    const zaman=ilk(h);
+    const gec=zaman && PAKETLER[k]?.saatSiniri!==false && takipGunuMu(k,bugun) && zaman.getHours()>=GEC_SAAT;
+    const parcalar=[];
+    if (h.kayit) parcalar.push('Kaydetti '+saatStr(h.kayit));
+    if (h.rapor) parcalar.push('Rapor '+saatStr(h.rapor));
+    return `<span style="color:${gec?'#C05050':'#4A7A56'};">${parcalar.join('<br>')}${gec?' ⚠︎ geç':' ✓'}</span>`;
+  };
+  let html=`<div style="font-size:13px;color:var(--text-soft);">${tarihTR(bugun)}${haftaSonu?' · Hafta sonu — takip yok':''}</div>`;
+  html+=`<div class="bugun-baslik" style="color:var(--dusty-rose);">Günlüğü geldi · aranacak (${aranacak.length})</div>`;
+  html+=aranacak.length?aranacak.map(x=>satir(x,saatHtml(x))).join(''):'<div style="font-size:12.5px;color:var(--text-soft);padding:4px 2px;">Şimdilik yok.</div>';
+  html+=`<div class="bugun-baslik" style="color:var(--success);">Arandı (${arananlar.length})</div>`;
+  html+=arananlar.length?arananlar.map(x=>satir(x,'📞 ✓')).join(''):'<div style="font-size:12.5px;color:var(--text-soft);padding:4px 2px;">Henüz yok.</div>';
+  if (!haftaSonu) {
+    html+=`<div class="bugun-baslik" style="color:var(--text-soft);">Takip günü · günlük gelmedi (${gelmeyen.length})</div>`;
+    html+=gelmeyen.length?gelmeyen.map(x=>satir(x,`<span style="color:var(--text-soft);">${sonGunlukMetni(x.a).replace('Son günlük: ','son: ')}</span>`)).join(''):'<div style="font-size:12.5px;color:var(--text-soft);padding:4px 2px;">Herkes iletti.</div>';
+  }
+  le.innerHTML=html;
+}
+
+function uzmanShowDetail(id, kaydir=true) {
   const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
   hide('uzman-list-section'); show('uzman-detail');
   el('uzman-detail').classList.add('visible');
+  const statlar=document.querySelector('#screen-dashboard .stats-row'); if(statlar) statlar.style.display='none';
+  if (kaydir) window.scrollTo(0,0);
   const ds=a.dogumTarihi?new Date(a.dogumTarihi+'T00:00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}):'—';
   const n=a.uzmanNot||{mevcutDurum:[],yaplacaklar:'',diger:''};
   const SECENEKLER=['Meme ile uyuyor','Rüya öğünü yapılacak','Sakinleşme düzenlenecek','Kucakta sallama ile uyuyor','Ayakta sallama ile uyuyor','Kucakta sabit duruş ile uyuyor','Pilates topu ile uyuyor','Emzik ile uyuyor'];
@@ -751,14 +1068,30 @@ function uzmanShowDetail(id) {
       <div><span style="color:var(--text-soft);font-size:11px;text-transform:uppercase;display:block;margin-bottom:3px;">Toplam Görüşme</span><strong data-gorusme-sayac style="color:${gorusmeSayisi>0?'#C4936A':'var(--text-main)'};">📞 ${gorusmeSayisi} görüşme</strong></div>
     </div></div>`;
 
+  html+=paketKartHtml(a);
+
   const tarihler=Object.keys(a.gunlukler).sort().reverse();
   if(tarihler.length===0){
     html+=`<div style="background:rgba(196,147,106,0.08);border:1px solid rgba(196,147,106,0.2);border-radius:12px;padding:18px;text-align:center;color:var(--text-soft);font-size:13px;">📓 Henüz günlük girilmemiş.</div>`;
   } else {
-    const tabs=tarihler.map((t,i)=>{
+    // Günleri hafta hafta grupla (başlangıç tarihi varsa danışmanlık haftasına göre)
+    const bas=a.profil?.baslangic_tarihi;
+    const gruplar=[];
+    tarihler.forEach((t,i)=>{
+      let anahtar, etiket;
+      if (bas && t>=bas) { const n=Math.floor(gunFarki(bas,t)/7)+1; anahtar='h'+n; etiket=n+'. hafta'; }
+      else if (bas) { anahtar='once'; etiket='Başlangıç öncesi'; }
+      else {
+        const d=new Date(t+'T12:00:00'); const fark=(d.getDay()+6)%7;
+        const pzt=new Date(d); pzt.setDate(d.getDate()-fark); const paz=new Date(pzt); paz.setDate(pzt.getDate()+6);
+        anahtar=tarihStr(pzt); etiket=tarihKisa(tarihStr(pzt))+' – '+tarihKisa(tarihStr(paz));
+      }
+      let g=gruplar.find(x=>x.anahtar===anahtar);
+      if(!g){ g={anahtar,etiket,html:''}; gruplar.push(g); }
       const arandi=a.gunlukler[t]?.arandi;
-      return `<button class="gunluk-day-tab ${i===0?'active':''}" onclick="uzmanSwitchDay('${t}',this)">${tarihKisa(t)}${arandi?' 📞':''}</button>`;
-    }).join('');
+      g.html+=`<button class="gunluk-day-tab ${i===0?'active':''}" onclick="uzmanSwitchDay('${t}',this)">${tarihKisa(t)}${arandi?' 📞':''}</button>`;
+    });
+    const tabs=gruplar.map(g=>`<div class="hafta-label">${g.etiket}</div><div class="gunluk-day-tabs" style="flex-wrap:wrap;margin-bottom:4px;">${g.html}</div>`).join('');
     const panels=tarihler.map((t,i)=>{
       const arandi=a.gunlukler[t]?.arandi||false;
       return `<div class="gunluk-day-panel ${i===0?'active':''}" id="uzman-day-${t.replace(/-/g,'')}">
@@ -771,8 +1104,17 @@ function uzmanShowDetail(id) {
         ${uzmanGunPanel(a.gunlukler[t],t)}
       </div>`;
     }).join('');
-    html+=`<div class="form-card" style="margin-top:14px;"><h3>📓 Günlükler</h3><div class="gunluk-day-tabs" style="flex-wrap:wrap;">${tabs}</div>${panels}</div>`;
+    html+=`<div class="form-card" style="margin-top:14px;"><h3>📓 Günlükler</h3>${tabs}<div style="margin-top:12px;">${panels}</div></div>`;
   }
+
+  // Kalıcı silme: listeden kaldırıldı, burada bebeğin adı yazılarak onaylanır
+  html+=`<div class="form-card" style="margin-top:24px;border-color:#E8B4B4;">
+    <div style="font-size:13px;font-weight:600;color:#C05050;margin-bottom:4px;">Aileyi kalıcı olarak sil</div>
+    <p style="font-size:12px;color:var(--text-soft);margin-bottom:10px;line-height:1.5;">Bu işlem geri alınamaz; ailenin profili, tüm günlükleri ve notlarınız silinir. Silmek yerine "Mezun" ya da "Yarım kaldı" olarak işaretlemeyi düşünün.</p>
+    <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">Onaylamak için bebeğin adını yazın: <b>${a.bebekAd}</b></label>
+    <input id="sil-onay-${a.id}" autocomplete="off" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;box-sizing:border-box;margin-bottom:8px;">
+    <button onclick="aileSil('${a.id}')" style="background:#FFF0F0;border:1px solid #E8B4B4;color:#C05050;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">🗑 Kalıcı olarak sil</button>
+  </div>`;
 
   html+=`</div>`;
 
@@ -832,6 +1174,7 @@ function uzmanGunPanel(g,t) {
     });
   } else { h+='<li style="padding:8px 12px;list-style:none;font-size:12.5px;color:#9B8878;">Gece uyanma kaydedilmemiş</li>'; }
   h+='</ul></div>';
+  if(g.aksamDalis) h+=`<div class="gunluk-block"><h4>😴 Akşam uykuya nasıl daldı?</h4><p style="font-size:13px;line-height:1.6;">${g.aksamDalis}</p></div>`;
   if((g.ruyaOgunleri||[]).length>0){
     h+='<div class="gunluk-block"><h4>🍼 Rüya Öğünleri</h4><ul class="gunluk-timeline">';
     g.ruyaOgunleri.forEach(r=>{
@@ -851,13 +1194,20 @@ function uzmanSwitchDay(tarih, btn) {
 }
 
 
-async function aileSil(id, ad) {
-  if (!confirm(ad + '\n\nBu aileyi silmek istediğinize emin misiniz?\nTüm günlük verileri de silinecek!')) return;
+async function aileSil(id) {
+  const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
+  const yazilan=(el('sil-onay-'+id)?.value||'').trim().toLocaleLowerCase('tr-TR');
+  if (!yazilan || yazilan!==a.bebekAd.trim().toLocaleLowerCase('tr-TR')) {
+    showToast('❌ Silmek için bebeğin adını aynen yazın.'); return;
+  }
+  if (!confirm(a.bebekAd + '\n\nSon onay: Bu aile ve tüm günlükleri kalıcı olarak silinecek. Bu işlem geri alınamaz.')) return;
   try {
     const gs = await getDocs(collection(db,'egitim_profilleri',id,'gunlukler'));
     for (const d of gs.docs) { await deleteDoc(d.ref); }
+    await deleteDoc(doc(db,'uzman_notlari',id)).catch(()=>{});
     await deleteDoc(doc(db,'egitim_profilleri',id));
     showToast('✓ Aile silindi.');
+    uzmanBackToList();
     uzmanLoadAileler();
   } catch(e) { showToast('❌ Hata: '+e.message); }
 }
@@ -869,9 +1219,11 @@ async function uzmanArandiToggle(aileId, tarih, btn) {
   const yeniDeger=!mevcutDeger;
   try {
     await setDoc(doc(db,'egitim_profilleri',aileId,'gunlukler',tarih),
-      {arandi: yeniDeger}, {merge:true});
+      {arandi: yeniDeger, arandi_zaman: yeniDeger?serverTimestamp():null}, {merge:true});
     if(!a.gunlukler[tarih]) a.gunlukler[tarih]={};
     a.gunlukler[tarih].arandi=yeniDeger;
+    a.gunlukler[tarih].arandi_zaman=yeniDeger?new Date():null;
+    const pk=el('paket-sayac-'+aileId); if(pk) pk.innerHTML=gorusmeSayacHtml(a);
     // Butonu güncelle
     btn.style.border=`1.5px solid ${yeniDeger?'#C4936A':'var(--border)'}`;
     btn.style.background=yeniDeger?'rgba(196,147,106,0.12)':'white';
@@ -972,12 +1324,137 @@ async function durumDegistir(id, yeniDurum) {
     const btn = el('durum-btn-'+id);
     if(btn){ btn.textContent=durumLabel+' ▾'; btn.style.color=durumRenk; }
     updateUzmanStats();
+    if (!el('uzman-detail')?.classList.contains('visible')) renderAileler();
     showToast(`✓ Durum "${durumLabel}" olarak güncellendi.`);
   } catch(e) { showToast('❌ Hata: '+e.message); }
 }
 
 function uzmanBackToList() {
   hide('uzman-detail'); el('uzman-detail').classList.remove('visible'); show('uzman-list-section');
+  const statlar=document.querySelector('#screen-dashboard .stats-row'); if(statlar) statlar.style.display='';
+  renderAileler();
+}
+
+// ============================================================
+// UZMAN: PAKET, SÜRE VE DONDURMA
+// ============================================================
+function gorusmeSayacHtml(a) {
+  const p=a.profil||{}, hak=gorusmeHakki(p), kul=kullanilanGorusme(a.gunlukler);
+  if (!hak) return `📞 <b>${kul}</b> görüşme${etkinPaket(p)==='diger'?' · <span style="color:var(--text-soft);">hak girilmedi</span>':''}`;
+  const kalan=hak-kul;
+  return `📞 <b>${kul} / ${hak}</b> · ${kalan>0?kalan+' kaldı':'<span style="color:#C05050;">bitti</span>'}`;
+}
+
+function paketKartHtml(a) {
+  const p=a.profil||{}, id=a.id;
+  const secili=p.paket||p.paket_secim||'';
+  const onayBekliyor=p.paket_secim && !p.paket;
+  const sure=sureGun(p), gg=gecenGun(p), donmus=donmusMu(p);
+  const secenekler=PAKET_SIRASI.map(k=>`<option value="${k}" ${k===secili?'selected':''}>${PAKETLER[k].ad}${PAKETLER[k].gorusme?' ('+PAKETLER[k].gorusme+' görüşme)':''}</option>`).join('');
+  let h=`<div class="form-card" style="margin-bottom:14px;"><h3>📦 Paket ve Süre</h3>`;
+
+  // Paket
+  h+=`<div class="panel-kutu">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="paket-sec-${id}" onchange="el('diger-alan-${id}').style.display=this.value==='diger'?'flex':'none'" style="padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;">
+        <option value="">Paket seçin…</option>${secenekler}</select>
+      <button class="mini-btn ana" onclick="uzmanPaketKaydet('${id}')">${onayBekliyor?'✓ Onayla':'💾 Kaydet'}</button>
+    </div>
+    <div id="diger-alan-${id}" style="display:${secili==='diger'?'flex':'none'};gap:8px;margin-top:8px;flex-wrap:wrap;font-size:12px;align-items:center;">
+      Görüşme hakkı <input id="diger-gorusme-${id}" type="number" min="0" value="${p.ozel_gorusme_hakki||''}" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border);">
+      Gün sayısı <input id="diger-gun-${id}" type="number" min="0" value="${p.ozel_gun_sayisi||''}" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border);">
+      <span style="color:var(--text-soft);">Boş bırakılırsa sayaç ve uyarı çıkmaz.</span>
+    </div>
+    ${onayBekliyor?`<div style="font-size:12px;color:#8A6020;margin-top:8px;">Aile "<b>${PAKETLER[p.paket_secim]?.ad||p.paket_secim}</b>" seçti — onayınızı bekliyor.</div>`:''}
+    ${!secili?'<div style="font-size:12px;color:var(--text-soft);margin-top:8px;">Aile henüz paket seçmedi. Bir sonraki girişinde seçmesi istenecek; isterseniz buradan siz de girebilirsiniz.</div>':''}
+    <div id="paket-sayac-${id}" style="font-size:13px;margin-top:10px;">${gorusmeSayacHtml(a)}</div>
+  </div>`;
+
+  // Süre
+  h+=`<div class="panel-kutu">`;
+  if (!p.baslangic_tarihi) {
+    h+=`<div style="font-size:13px;margin-bottom:8px;"><b>Danışmanlık süresi</b> <span class="durum-badge" style="background:#F3EDE6;color:var(--text-soft);">Başlamadı</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="date" id="baslangic-${id}" value="${bugunStr()}" style="padding:7px;border-radius:8px;border:1px solid var(--border);font-family:inherit;">
+        <button class="mini-btn ana" onclick="uzmanBaslat('${id}')">▶ Danışmanlık başladı</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-soft);margin-top:6px;">Süre bu günden itibaren ${sure||'—'} gün sayılır. Regülasyon dönemi bu süreye dahil değildir.</div>`;
+  } else {
+    const bitis=bitisTarihi(p);
+    const yuzde=sure?Math.min(100,Math.round(Math.min(gg,sure)/sure*100)):0;
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <b style="font-size:13px;">Danışmanlık süresi</b>
+        ${donmus?'<span class="donma-tag">⏸ Donduruldu</span>':sureDolduMu(p)?'<span class="durum-badge durum-yarim">Süre doldu</span>':'<span class="durum-badge durum-aktif">Devam ediyor</span>'}
+      </div>
+      <div style="font-size:12.5px;margin-bottom:6px;">Başladı: ${tarihKisa(p.baslangic_tarihi)}${sure?` · <b>Gün ${Math.min(gg,sure)} / ${sure}</b>`:` · ${gg}. gün`}${bitis?` · Bitiş: ${tarihKisa(bitis)}`:''}</div>
+      ${sure?`<div style="height:6px;background:#EFE6DC;border-radius:6px;overflow:hidden;margin-bottom:10px;"><i style="display:block;height:100%;width:${yuzde}%;background:linear-gradient(90deg,var(--sage),var(--dusty-rose));"></i></div>`:''}`;
+    if (donmus) {
+      const son=p.donmalar[p.donmalar.length-1];
+      h+=`<div style="font-size:12.5px;margin-bottom:8px;">${tarihKisa(son.bas)}'den beri · <b>${gunFarki(son.bas,bugunStr())} gündür</b>${son.not?' · Not: '+son.not:''}</div>
+        <button class="mini-btn ana" onclick="uzmanDevamEt('${id}')">▶ Yeniden başladık</button>`;
+    } else {
+      h+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="donma-not-${id}" placeholder="Not (isteğe bağlı) örn. bebek ateşli" style="flex:1;min-width:160px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:12.5px;">
+          <button class="mini-btn" onclick="uzmanDondur('${id}')">⏸ Paketi dondur</button>
+        </div>`;
+    }
+    const gecmis=(p.donmalar||[]).filter(d=>d.bit);
+    if (gecmis.length) h+=`<div style="font-size:11.5px;color:var(--text-soft);margin-top:8px;">Önceki donmalar: ${gecmis.map(d=>`${tarihKisa(d.bas)}–${tarihKisa(d.bit)} (${gunFarki(d.bas,d.bit)} gün)${d.not?' · '+d.not:''}`).join('; ')}</div>`;
+    h+=`<details style="margin-top:10px;font-size:12px;"><summary style="cursor:pointer;color:var(--text-soft);">Başlangıç tarihini düzelt</summary>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+          <input type="date" id="baslangic-${id}" value="${p.baslangic_tarihi}" style="padding:6px;border-radius:8px;border:1px solid var(--border);font-family:inherit;">
+          <button class="mini-btn" onclick="uzmanBaslat('${id}')">Kaydet</button>
+        </div></details>`;
+  }
+  h+=`</div>`;
+
+  // Bilgilendirme
+  const okundu=tsDate(p.bilgilendirme_okundu);
+  h+=`<div style="font-size:12px;color:${okundu?'#4A7A56':'var(--text-soft)'};">${okundu?`✓ Bilgilendirmeyi okudu: ${okundu.toLocaleDateString('tr-TR',{day:'numeric',month:'long'})} ${saatStr(okundu)}`:'Bilgilendirme penceresini henüz onaylamadı.'}</div>`;
+  h+=`</div>`;
+  return h;
+}
+
+async function uzmanProfilGuncelle(id, veri, mesaj) {
+  const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
+  try {
+    await updateDoc(doc(db,'egitim_profilleri',id), veri);
+    a.profil={...(a.profil||{}), ...veri};
+    showToast(mesaj);
+    uzmanShowDetail(id, false);
+  } catch(e) { showToast('❌ Hata: '+e.message); }
+}
+
+function uzmanPaketKaydet(id) {
+  const k=el('paket-sec-'+id)?.value;
+  if (!PAKETLER[k]) { showToast('❌ Paket seçin.'); return; }
+  const veri={paket:k};
+  if (k==='diger') {
+    veri.ozel_gorusme_hakki=Number(el('diger-gorusme-'+id)?.value)||null;
+    veri.ozel_gun_sayisi=Number(el('diger-gun-'+id)?.value)||null;
+  }
+  uzmanProfilGuncelle(id, veri, '✓ Paket kaydedildi.');
+}
+
+function uzmanBaslat(id) {
+  const t=el('baslangic-'+id)?.value;
+  if (!t) { showToast('❌ Tarih seçin.'); return; }
+  uzmanProfilGuncelle(id, {baslangic_tarihi:t}, '▶ Danışmanlık başlangıcı kaydedildi.');
+}
+
+function uzmanDondur(id) {
+  const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
+  const not=(el('donma-not-'+id)?.value||'').trim();
+  const donmalar=[...(a.profil?.donmalar||[]), {bas:bugunStr(), bit:null, not}];
+  uzmanProfilGuncelle(id, {donmalar}, '⏸ Paket donduruldu.');
+}
+
+function uzmanDevamEt(id) {
+  const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
+  const donmalar=(a.profil?.donmalar||[]).map(d=>({...d}));
+  if (!donmalar.length) return;
+  donmalar[donmalar.length-1].bit=bugunStr();
+  uzmanProfilGuncelle(id, {donmalar}, '▶ Danışmanlık yeniden başladı.');
 }
 
 // ============================================================
@@ -1006,3 +1483,5 @@ window.uzmanNotDuzenle=uzmanNotDuzenle; window.uzmanNotKaydet=uzmanNotKaydet;
 window.uzmanDuzenleAc=uzmanDuzenleAc; window.uzmanProfiliKaydet=uzmanProfiliKaydet;
 window.addRuya=addRuya; window.uzmanArandiToggle=uzmanArandiToggle;
 window.switchArsivTab=switchArsivTab; window.durumMenuToggle=durumMenuToggle; window.durumDegistir=durumDegistir;
+window.paketSeciminiKaydet=paketSeciminiKaydet; window.gecmisTumunuGoster=gecmisTumunuGoster; window.bilgilendirmeOkundu=bilgilendirmeOkundu;
+window.uzmanPaketKaydet=uzmanPaketKaydet; window.uzmanBaslat=uzmanBaslat; window.uzmanDondur=uzmanDondur; window.uzmanDevamEt=uzmanDevamEt;

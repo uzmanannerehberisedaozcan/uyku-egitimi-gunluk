@@ -76,6 +76,9 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
 /* Editor */
 .gunluk-editor-area{padding:20px 20px 80px;}
 @media(max-width:700px){.gunluk-editor-area{padding:14px 14px 80px;}.gecmis-sidebar{border-right:none;border-bottom:1px solid var(--border);}}
+/* Telefonda geçmiş günler katlanır: son 3 gün görünür */
+.gecmis-tumu{display:none;width:calc(100% - 32px);margin:8px 16px 0;padding:9px;border:1.5px dashed var(--border);border-radius:8px;background:none;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--mid-brown);cursor:pointer;}
+@media(max-width:700px){#gecmis-list.kisa .gecmis-item:nth-child(n+4){display:none;}.gecmis-tumu{display:block;}}
 .editor-header{background:var(--warm-white);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .editor-header-left{flex:1;}
 .editor-tarih-label{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--deep-brown);margin-bottom:6px;}
@@ -174,11 +177,43 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
 .gtl-sure{color:var(--mid-brown);font-size:11.5px;}
 .gtl-not{background:rgba(250,247,242,0.8);border-left:3px solid var(--border);padding:6px 10px;border-radius:0 6px 6px 0;font-size:12.5px;color:var(--text-soft);margin-top:4px;}
 
+/* Örnek yazılar gerçek değer gibi görünmesin */
+input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-weight:400;}
+/* Paket takibi */
+.paket-tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:600;color:white;letter-spacing:.2px;vertical-align:middle;}
+.donma-tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:600;color:white;background:#6E8CA8;vertical-align:middle;}
+.sayac-satir{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text-main);margin-top:4px;}
+.aile-info .paket-tag,.aile-info .donma-tag,.aile-info .durum-badge{display:inline-block;color:white;font-size:10.5px;}
+.aile-info .durum-badge{color:inherit;}
+.aile-info .sayac-satir span{display:inline;font-size:12px;color:var(--text-main);}
+.uyari{border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.55;margin-bottom:12px;}
+.uyari-sari{background:#FBF3E4;border:1px solid #EBD3A6;color:#7A5520;}
+.uyari-kirmizi{background:#FBEDEC;border:1px solid #E8B4B4;color:#9A3B3B;}
+.uyari-mavi{background:#EEF2F6;border:1px solid #C9D5E2;color:#3E5872;}
+.uyari-yesil{background:#E9F2EA;border:1px solid #C3DCC6;color:#3F6B4A;}
+.btn-wa{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#25D366;color:white;border:none;padding:12px 16px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none;margin-top:10px;box-shadow:0 4px 16px rgba(37,211,102,0.3);}
+.paket-opt{display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;background:white;margin-bottom:8px;cursor:pointer;font-size:13.5px;text-align:left;}
+.paket-opt input{accent-color:var(--dusty-rose);width:auto!important;flex:none;margin:0;padding:0;}
+.paket-opt .ek{white-space:nowrap;}
+.paket-opt .renk{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.paket-opt .ek{margin-left:auto;font-size:11.5px;color:var(--text-soft);}
+.paket-opt:has(input:checked){border-color:var(--dusty-rose);background:#FBF5EF;}
+.bilgi-madde{font-size:13px;color:var(--text-main);line-height:1.6;margin-bottom:10px;}
+.hafta-label{font-size:11px;color:var(--text-soft);margin:10px 0 6px;letter-spacing:.3px;}
+.bugun-baslik{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin:18px 0 8px;}
+.bugun-satir{display:flex;align-items:center;gap:12px;background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;cursor:pointer;}
+.bugun-satir:hover{border-color:var(--dusty-rose);}
+.bugun-satir .sag{margin-left:auto;text-align:right;font-size:12px;white-space:nowrap;}
+.panel-kutu{background:white;border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;}
+.mini-btn{background:white;border:1.5px solid var(--border);padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;cursor:pointer;color:var(--mid-brown);}
+.mini-btn.ana{background:linear-gradient(135deg,var(--dusty-rose),var(--gold));color:white;border:none;}
+.mini-btn:disabled{opacity:.5;cursor:not-allowed;}
 @media(max-width:600px){
   input,select,textarea{font-size:16px!important;}
   .form-row{grid-template-columns:1fr;}
-  .gunduz-uyku-row{grid-template-columns:1fr 1fr;}
-  .gunduz-uyku-row .form-group:nth-child(3){grid-column:1/-1;}
+  .gunduz-uyku-row{grid-template-columns:1fr 1fr auto;}
+  .gunduz-uyku-row .form-group:nth-child(4){grid-column:1/-1;}
+  .gunduz-uyku-row .btn-remove-uyku{grid-column:3;grid-row:2;}
   .action-bar{flex-direction:column;}
 }
 </style>
@@ -216,6 +251,16 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
         <div class="form-group"><label>Bebek Adı *</label><input type="text" id="reg-bebek-ad" placeholder="Bebek adı"></div>
       </div>
       <div class="form-group"><label>Bebeğin Doğum Tarihi *</label><input type="date" id="reg-dogum-tarihi"></div>
+      <div class="form-group"><label>Danışmanlık Paketiniz *</label>
+        <select id="reg-paket">
+          <option value="">Seçiniz...</option>
+          <option value="kapsamli">Kapsamlı Değerlendirme</option>
+          <option value="standart">Standart</option>
+          <option value="full">Full</option>
+          <option value="vip">VIP</option>
+          <option value="diger">Diğer</option>
+        </select>
+      </div>
       <div class="form-group"><label>E-posta *</label><input type="email" id="reg-email" placeholder="ornek@email.com"></div>
       <div class="form-row">
         <div class="form-group"><label>Şifre *</label><input type="password" id="reg-sifre" placeholder="Min. 6 karakter"></div>
@@ -267,6 +312,25 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
   </div>
 </div>
 
+<!-- PAKET SEÇİMİ (paketi olmayan aileler için, bir kez) -->
+<div class="modal-overlay" id="paket-modal">
+  <div class="modal-box">
+    <h2>Danışmanlık paketiniz</h2>
+    <p>Takibinizi doğru yapabilmemiz için lütfen paketinizi seçin. Emin değilseniz "Diğer"i seçebilirsiniz.</p>
+    <div id="paket-secenekler"></div>
+    <div class="error-msg" id="paket-hata"></div>
+    <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;margin-top:6px;" onclick="paketSeciminiKaydet()">Kaydet →</button>
+  </div>
+</div>
+<!-- İLK GİRİŞ BİLGİLENDİRMESİ -->
+<div class="modal-overlay" id="bilgi-modal">
+  <div class="modal-box">
+    <div style="font-size:30px;text-align:center;">🌙</div>
+    <h2 style="text-align:center;">Günlük takibi nasıl işler?</h2>
+    <div id="bilgi-metni" style="margin:14px 0 16px;"></div>
+    <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;" onclick="bilgilendirmeOkundu()">Okudum, anladım</button>
+  </div>
+</div>
 <!-- AİLE PORTALI -->
 <div id="screen-portal" class="screen">
   <div class="portal-header">
@@ -283,6 +347,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
     <div class="gecmis-sidebar">
       <h3>📋 Günlükler</h3>
       <div id="gecmis-list"></div>
+      <button class="gecmis-tumu" id="gecmis-tumu" onclick="gecmisTumunuGoster()"></button>
     </div>
 
     <!-- Sağ: Editor -->
@@ -296,6 +361,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
           <span id="banner-dogum">—</span>
         </div>
       </div>
+      <div id="aile-uyari"></div>
 
       <div id="gunluk-editor" style="display:none;">
         <!-- Tarih başlık -->
@@ -314,7 +380,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
           <h3>🌅 Sabah Uyanma</h3>
           <div class="form-group" style="max-width:160px;">
             <label>Sabah uyanma saati</label>
-            <input type="text" id="sabah" placeholder="06:30" inputmode="numeric"
+            <input type="text" id="sabah" placeholder="örn. 06:30" inputmode="numeric"
               oninput="formatSaatInput(this);calcUyanikSureler()"
               onblur="formatSaatInput(this,true);calcUyanikSureler()"
               style="font-weight:600;color:#5C4A3A;">
@@ -334,18 +400,22 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
           <h3>🌙 Gece Uykusu</h3>
           <div class="time-group" style="margin-bottom:12px;">
             <div class="form-group"><label>Yatış saati</label>
-              <input type="text" id="yatis" placeholder="20:00" inputmode="numeric"
+              <input type="text" id="yatis" placeholder="örn. 20:00" inputmode="numeric"
                 oninput="formatSaatInput(this);calcGece()"
                 onblur="formatSaatInput(this,true);calcGece()">
             </div>
             <div class="form-group"><label>Sabah kalkış saati</label>
-              <input type="text" id="kalkis" placeholder="07:00" inputmode="numeric"
+              <input type="text" id="kalkis" placeholder="örn. 07:00" inputmode="numeric"
                 oninput="formatSaatInput(this);calcGece()"
                 onblur="formatSaatInput(this,true);calcGece()">
             </div>
             <div class="form-group"><label>Toplam gece uykusu</label>
               <input type="text" id="gece-sure" readonly placeholder="Otomatik" style="background:#F5F0EA;color:var(--mid-brown);">
             </div>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label style="color:var(--dusty-rose);font-weight:600;">Akşam uykuya nasıl daldı?</label>
+            <textarea id="aksam-dalis" style="min-height:70px;" placeholder="örn. Emzirerek, 15 dakikada daldı…"></textarea>
           </div>
           <label style="font-size:12.5px;color:var(--mid-brown);font-weight:500;display:block;margin-bottom:8px;">Gece Ara Uyanmaları</label>
           <div id="uyanma-list"></div>
@@ -367,9 +437,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
         <!-- BUTONLAR -->
         <div class="action-bar">
           <button class="btn-kaydet" id="btn-kaydet" onclick="gunlukKaydet()">💾 Kaydet</button>
-          <button class="btn-rapor" onclick="raporModalAc()">📤 Rapor Gönder</button>
+          <button class="btn-rapor" onclick="raporModalAc()">📤 WhatsApp ile Rapor Gönder</button>
         </div>
         <div class="save-status" id="save-status">✓ Kaydedildi</div>
+        <div id="kayit-sonrasi" style="display:none;margin-top:10px;"></div>
       </div>
 
       <!-- Boş durum -->
@@ -410,8 +481,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.5;}
         <h2 style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--deep-brown);">Aileler</h2>
         <button onclick="uzmanLoadAileler()" style="background:none;border:1.5px solid var(--border);padding:7px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-soft);cursor:pointer;">🔄 Yenile</button>
       </div>
+      <div id="sure-doldu"></div>
       <div class="arsiv-tabs">
-        <button class="arsiv-tab active" id="tab-aktif" onclick="switchArsivTab('aktif')">✅ Aktif <span class="tab-count" id="count-aktif">0</span></button>
+        <button class="arsiv-tab active" id="tab-bugun" onclick="switchArsivTab('bugun')">📅 Bugün</button>
+        <button class="arsiv-tab" id="tab-aktif" onclick="switchArsivTab('aktif')">✅ Aktif <span class="tab-count" id="count-aktif">0</span></button>
         <button class="arsiv-tab" id="tab-mezun" onclick="switchArsivTab('mezun')">🎓 Mezun <span class="tab-count" id="count-mezun">0</span></button>
         <button class="arsiv-tab" id="tab-yarim" onclick="switchArsivTab('yarim')">⏸️ Yarım Kaldı <span class="tab-count" id="count-yarim">0</span></button>
       </div>
