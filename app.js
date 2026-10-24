@@ -112,6 +112,16 @@ const PAKETLER = {
 const PAKET_SIRASI = ['kapsamli','standart','full','vip','diger'];
 const SEKRETERLIK_WA = '905304105057';
 const GEC_SAAT = 11; // 11.00'den sonra iletilen günlük "geç" sayılır
+const UZUN_ARA_GUN = 5; // bu kadar gündür günlük girmeyen aile "Bugün" ekranında işaretlenir
+
+// Portaldan gelen paket (?paket=standart): kayıtta seçili gelir, girişte paket sorulmaz
+function portalPaketi() {
+  try {
+    const k=new URLSearchParams(location.search).get('paket');
+    if (PAKETLER[k]) { sessionStorage.setItem('portalPaket',k); return k; }
+    const s=sessionStorage.getItem('portalPaket'); return PAKETLER[s]?s:null;
+  } catch(e) { return null; }
+}
 
 function etkinPaket(p) { const k=p?.paket||p?.paket_secim; return PAKETLER[k]?k:null; }
 function paketTag(k, onayli=true) {
@@ -364,9 +374,17 @@ function aileUyarilariGoster() {
   kutu.innerHTML=html;
 }
 
-function aileIlkGirisAdimlari() {
+async function aileIlkGirisAdimlari() {
   if (!aileProfil) return;
-  if (!etkinPaket(aileProfil)) { paketModalAc(); return; }
+  if (!etkinPaket(aileProfil)) {
+    const pp=portalPaketi();
+    if (!pp) { paketModalAc(); return; }
+    try {
+      await updateDoc(doc(db,'egitim_profilleri',activeProfilId),{paket_secim:pp});
+      aileProfil={...aileProfil, paket_secim:pp};
+      aileUyarilariGoster();
+    } catch(e) { paketModalAc(); return; }
+  }
   if (!aileProfil.bilgilendirme_okundu) bilgiModalAc();
 }
 
@@ -883,6 +901,12 @@ function sekmeFiltresi() {
   return uzmanAileler.filter(a=>(a.durum||'aktif')===durum);
 }
 
+// Son günlükten bu yana geçen gün (hiç günlük yoksa null)
+function sonGunlukGunFarki(a) {
+  const tarihler=Object.keys(a.gunlukler).filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t) && a.gunlukler[t]?.guncelleme).sort();
+  return tarihler.length ? gunFarki(tarihler[tarihler.length-1], bugunStr()) : null;
+}
+
 function sonGunlukMetni(a) {
   const tarihler=Object.keys(a.gunlukler).filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t)).sort();
   if (!tarihler.length) return 'Henüz günlük yok';
@@ -976,11 +1000,13 @@ function renderBugun() {
   const bugun=bugunStr();
   const haftaSonu=[0,6].includes(new Date(bugun+'T12:00:00').getDay());
   const aktifler=uzmanAileler.filter(a=>(a.durum||'aktif')==='aktif');
-  const aranacak=[], arananlar=[], gelmeyen=[];
+  const aranacak=[], arananlar=[], gelmeyen=[], uzunAra=[];
   for (const a of aktifler) {
     const h=bugunHareketleri(a), p=a.profil||{}, k=etkinPaket(p);
+    const ara=sonGunlukGunFarki(a);
     if (h.arandi) arananlar.push({a,h});
     else if (h.geldi) aranacak.push({a,h});
+    else if (k && ara!=null && ara>=UZUN_ARA_GUN && !donmusMu(p)) uzunAra.push({a,h,ara});
     else if (!haftaSonu && p.baslangic_tarihi && !donmusMu(p) && takipGunuMu(k, bugun) && !sureDolduMu(p)) gelmeyen.push({a,h});
   }
   const ilk=(h)=>h.rapor||h.kayit;
@@ -1010,6 +1036,11 @@ function renderBugun() {
   if (!haftaSonu) {
     html+=`<div class="bugun-baslik" style="color:var(--text-soft);">Takip günü · günlük gelmedi (${gelmeyen.length})</div>`;
     html+=gelmeyen.length?gelmeyen.map(x=>satir(x,`<span style="color:var(--text-soft);">${sonGunlukMetni(x.a).replace('Son günlük: ','son: ')}</span>`)).join(''):'<div style="font-size:12.5px;color:var(--text-soft);padding:4px 2px;">Herkes iletti.</div>';
+  }
+  if (uzunAra.length) {
+    uzunAra.sort((x,y)=>x.ara-y.ara);
+    html+=`<div class="bugun-baslik" style="color:#C05050;">${UZUN_ARA_GUN}+ gündür günlük yok (${uzunAra.length})</div>`;
+    html+=uzunAra.map(x=>satir(x,`<span style="color:#C05050;">${x.ara} gündür yok</span><br><button class="mini-btn" style="margin-top:4px;" onclick="event.stopPropagation();if(confirm('${x.a.bebekAd.replace(/'/g,'')} Yarım kaldı sekmesine taşınsın mı?'))durumDegistir('${x.a.id}','yarim')">⏸️ Yarım</button>`)).join('');
   }
   le.innerHTML=html;
 }
@@ -1240,7 +1271,20 @@ async function uzmanArandiToggle(aileId, tarih, btn) {
     const sayacEl=document.querySelector(`#uzman-detail-content [data-gorusme-sayac]`);
     if(sayacEl) sayacEl.textContent=`📞 ${yeniSayi} görüşme`;
     showToast(yeniDeger?'📞 Görüşme kaydedildi!':'Görüşme işareti kaldırıldı.');
+    if (yeniDeger) baslangicOner(a);
   } catch(e){ showToast('❌ Hata: '+e.message); }
+}
+
+// Başlangıç tarihi girilmemiş ailede ilk görüşme gününü danışmanlık başlangıcı olarak önerir
+function baslangicOner(a) {
+  const p=a.profil||{};
+  if (p.baslangic_tarihi || !etkinPaket(p) || (a.durum||'aktif')!=='aktif') return;
+  const ilk=Object.keys(a.gunlukler).filter(t=>a.gunlukler[t]?.arandi).sort()[0];
+  if (!ilk) return;
+  const metin=gunFarki(ilk, bugunStr())===0
+    ? 'Danışmanlık bugün başladı mı?\n\n"Tamam" derseniz başlangıç tarihi bugün olarak kaydedilir.'
+    : `Bu ailenin ilk görüşmesi ${tarihKisa(ilk)} tarihinde işaretlenmiş.\n\nDanışmanlık başlangıcı ${tarihKisa(ilk)} olarak kaydedilsin mi?`;
+  setTimeout(()=>{ if (confirm(metin)) uzmanProfilGuncelle(a.id, {baslangic_tarihi:ilk}, '▶ Danışmanlık başlangıcı kaydedildi.'); }, 50);
 }
 
 function uzmanNotDuzenle(id) {
@@ -1461,6 +1505,8 @@ function uzmanDevamEt(id) {
 // BAŞLANGIÇ
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  const pp=portalPaketi();
+  if (pp && el('reg-paket')) { el('reg-paket').value=pp; show('reg-paket-not'); }
   if (sessionStorage.getItem('uzmanGiris')==='true') {
     showScreen('dashboard'); uzmanLoadAileler();
   }
