@@ -123,6 +123,17 @@ function portalPaketi() {
   } catch(e) { return null; }
 }
 
+// Ek görüşme paketleri: süresi dolan ya da görüşmesi biten aileye, ödeme sonrası uzman ekler.
+// Ek dönemde takip günü yoktur; aile görüşme istediği gün günlüğünü 08.00–11.00 arasında iletir.
+const EK_PAKETLER = {
+  5: { gorusme:5, gun:30, ad:'5 görüşme (1 ay)', fiyat:'7.500 TL + KDV' },
+  1: { gorusme:1, gun:7,  ad:'1 görüşme (1 hafta)', fiyat:'1.800 TL + KDV' },
+};
+function ekBitis(e) { const d=new Date(e.bas+'T12:00:00'); d.setDate(d.getDate()+e.gun-1); return tarihStr(d); }
+function aktifEk(p, bugun=bugunStr()) {
+  return [...(p?.ekler||[])].reverse().find(e=>e.bas<=bugun && bugun<=ekBitis(e)) || null;
+}
+
 function etkinPaket(p) { const k=p?.paket||p?.paket_secim; return PAKETLER[k]?k:null; }
 function paketTag(k, onayli=true) {
   const pk=PAKETLER[k]; if(!pk) return '<span class="paket-tag" style="background:#C9BBAE;">Paket yok</span>';
@@ -130,8 +141,9 @@ function paketTag(k, onayli=true) {
 }
 function gorusmeHakki(p) {
   const k=etkinPaket(p); if(!k) return null;
-  if (k==='diger') return Number(p.ozel_gorusme_hakki)||null;
-  return PAKETLER[k].gorusme;
+  const ana = k==='diger' ? (Number(p.ozel_gorusme_hakki)||0) : PAKETLER[k].gorusme;
+  const ek = (p.ekler||[]).reduce((t,e)=>t+(Number(e.gorusme)||0), 0);
+  return (ana+ek) || null;
 }
 function sureGun(p) {
   const k=etkinPaket(p); if(!k) return null;
@@ -165,7 +177,7 @@ function bitisTarihi(p) {
 }
 function sureDolduMu(p) {
   const s=sureGun(p), g=gecenGun(p);
-  return !!s && g!=null && g>s && !donmusMu(p) && (p.durum||'aktif')==='aktif';
+  return !!s && g!=null && g>s && !donmusMu(p) && !aktifEk(p) && (p.durum||'aktif')==='aktif';
 }
 function takipGunuMu(k, tarih=bugunStr()) {
   const gun=new Date(tarih+'T12:00:00').getDay();
@@ -176,7 +188,8 @@ function takipGunleriMetni(k) {
   if (k==='full'||k==='vip') return 'takip günlerinizde (<b>hafta içi her gün</b>, Pazartesi–Cuma)';
   return 'danışmanınızın belirttiği takip günlerinde';
 }
-function raporZamanMetni(k) {
+function raporZamanMetni(k, p=aileProfil) {
+  if (p && aktifEk(p)) return 'görüşme istediğiniz gün <b>08.00–11.00 arasında</b>';
   const saat = PAKETLER[k]?.saatSiniri===false ? '' : ' <b>08.00–11.00 arasında</b>';
   return takipGunleriMetni(k)+saat;
 }
@@ -361,10 +374,14 @@ function aileUyarilariGoster() {
     html+=`<div class="uyari uyari-mavi">⏸ Paketiniz şu an <b>dondurulmuştur</b>. Bu sürede danışmanlık süreniz işlemez.</div>`;
   }
   const hak=gorusmeHakki(aileProfil);
+  const ekA=aktifEk(aileProfil);
+  if (ekA && hak && hak-kullanilanGorusme(gunlukCache)>1) {
+    html+=`<div class="uyari uyari-yesil">➕ Ek görüşme paketiniz tanımlı: <b>${hak-kullanilanGorusme(gunlukCache)} görüşme hakkınız</b> var, bitiş <b>${tarihKisa(ekBitis(ekA))}</b>. Görüşme istediğiniz gün günlüğünüzü <b>08.00–11.00 arasında</b> iletin.</div>`;
+  }
   if (hak) {
     const kalan=hak-kullanilanGorusme(gunlukCache);
     if (kalan<=0) {
-      const wa='https://wa.me/'+SEKRETERLIK_WA+'?text='+encodeURIComponent('Merhaba, '+(aileBilgi?.bebekAd||'')+' için danışmanlık paketimdeki görüşme sayısı bitti. Bilgi almak istiyorum.');
+      const wa='https://wa.me/'+SEKRETERLIK_WA+'?text='+encodeURIComponent('Merhaba, '+(aileBilgi?.bebekAd||'')+' için danışmanlık paketimdeki görüşme sayısı bitti. Ek görüşme paketi hakkında bilgi almak istiyorum.');
       html+=`<div class="uyari uyari-kirmizi">Danışmanlık paketinizdeki görüşme sayısı bitmiştir. Lütfen sekreterlikle iletişime geçin.
         <a class="btn-wa" href="${wa}" target="_blank" rel="noopener">💬 Sekreterliğe WhatsApp ile yazın</a></div>`;
     } else if (kalan===1) {
@@ -923,6 +940,7 @@ function aileOzetSatiri(a) {
   h+=hak ? `<span>📞 <b>${kul} / ${hak}</b>${hak-kul>0?' · '+(hak-kul)+' kaldı':' · <span style="color:#C05050;">bitti</span>'}</span>` : `<span>📞 ${kul} görüşme</span>`;
   if (sure && gg!=null) h+=`<span>📅 <b>Gün ${Math.min(gg,sure)} / ${sure}</b>${donmusMu(p)?' (duruyor)':gg>sure?' · <span style="color:#C05050;">süre doldu</span>':''}</span>`;
   else if (sure) h+=`<span style="color:var(--text-soft);">📅 Başlamadı</span>`;
+  const ekA=aktifEk(p); if (ekA) h+=`<span>➕ <b>Ek dönem</b> · bitiş ${tarihKisa(ekBitis(ekA))}</span>`;
   h+='</div>';
   return h;
 }
@@ -1006,7 +1024,7 @@ function renderBugun() {
     const ara=sonGunlukGunFarki(a);
     if (h.arandi) arananlar.push({a,h});
     else if (h.geldi) aranacak.push({a,h});
-    else if (k && ara!=null && ara>=UZUN_ARA_GUN && !donmusMu(p)) uzunAra.push({a,h,ara});
+    else if (k && ara!=null && ara>=UZUN_ARA_GUN && !donmusMu(p) && !aktifEk(p)) uzunAra.push({a,h,ara});
     else if (!haftaSonu && p.baslangic_tarihi && !donmusMu(p) && takipGunuMu(k, bugun) && !sureDolduMu(p)) gelmeyen.push({a,h});
   }
   const ilk=(h)=>h.rapor||h.kayit;
@@ -1022,7 +1040,8 @@ function renderBugun() {
   const saatHtml=({a,h})=>{
     const k=etkinPaket(a.profil||{});
     const zaman=ilk(h);
-    const gec=zaman && PAKETLER[k]?.saatSiniri!==false && takipGunuMu(k,bugun) && zaman.getHours()>=GEC_SAAT;
+    const saatli=aktifEk(a.profil||{}) ? true : (PAKETLER[k]?.saatSiniri!==false && takipGunuMu(k,bugun));
+    const gec=zaman && saatli && zaman.getHours()>=GEC_SAAT;
     const parcalar=[];
     if (h.kayit) parcalar.push('Kaydetti '+saatStr(h.kayit));
     if (h.rapor) parcalar.push('Rapor '+saatStr(h.rapor));
@@ -1452,6 +1471,27 @@ function paketKartHtml(a) {
   }
   h+=`</div>`;
 
+  // Ek görüşme
+  if (etkinPaket(p)) {
+    const ekA=aktifEk(p), ekler=p.ekler||[];
+    h+=`<div class="panel-kutu">
+      ${ekA?`<div style="font-size:12.5px;margin-bottom:8px;">➕ <b>Ek dönem</b> · ${tarihKisa(ekA.bas)} – ${tarihKisa(ekBitis(ekA))}</div>`:''}
+      <details class="ek-acilir"><summary class="mini-btn">➕ Ek görüşme ekle</summary>
+      <div style="margin-top:10px;">
+      <div style="font-size:11.5px;color:var(--text-soft);margin-bottom:8px;">Ödeme alındıktan sonra ekleyin. Ek dönemde takip günü yoktur; aile görüşme istediği gün günlüğünü 08.00–11.00 arasında iletir.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="date" id="ek-bas-${id}" value="${bugunStr()}" style="padding:7px;border-radius:8px;border:1px solid var(--border);font-family:inherit;">
+        <input id="ek-not-${id}" placeholder="Not örn. ödeme 24 Ekim, havale" style="flex:1;min-width:160px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:12.5px;">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        ${Object.entries(EK_PAKETLER).sort((x,y)=>y[0]-x[0]).map(([n,e])=>`<button class="mini-btn ana" onclick="uzmanEkEkle('${id}',${n})">➕ ${e.ad} · ${e.fiyat}</button>`).join('')}
+      </div>
+      ${ekler.length?`<div style="font-size:11.5px;color:var(--text-soft);margin-top:10px;">Eklenenler: ${ekler.map(e=>`${tarihKisa(e.bas)}–${tarihKisa(ekBitis(e))} · ${e.gorusme} görüşme${e.not?' · '+e.not:''}`).join('; ')}
+        · <a href="#" onclick="event.preventDefault();uzmanEkGeriAl('${id}')" style="color:#C05050;">son eklemeyi geri al</a></div>`:''}
+      </div></details>
+    </div>`;
+  }
+
   // Bilgilendirme
   const okundu=tsDate(p.bilgilendirme_okundu);
   h+=`<div style="font-size:12px;color:${okundu?'#4A7A56':'var(--text-soft)'};">${okundu?`✓ Bilgilendirmeyi okudu: ${okundu.toLocaleDateString('tr-TR',{day:'numeric',month:'long'})} ${saatStr(okundu)}`:'Bilgilendirme penceresini henüz onaylamadı.'}</div>`;
@@ -1484,6 +1524,25 @@ function uzmanBaslat(id) {
   const t=el('baslangic-'+id)?.value;
   if (!t) { showToast('❌ Tarih seçin.'); return; }
   uzmanProfilGuncelle(id, {baslangic_tarihi:t}, '▶ Danışmanlık başlangıcı kaydedildi.');
+}
+
+function uzmanEkEkle(id, n) {
+  const a=uzmanAileler.find(x=>x.id===id); const e=EK_PAKETLER[n]; if(!a||!e) return;
+  const bas=el('ek-bas-'+id)?.value||bugunStr();
+  const yeni={bas, gorusme:e.gorusme, gun:e.gun, not:(el('ek-not-'+id)?.value||'').trim()};
+  const durumNotu=(a.durum||'aktif')!=='aktif' ? '\n\nAile yeniden "Aktif" sekmesine taşınacak.' : '';
+  if (!confirm(`${a.bebekAd} için ek ${e.ad} eklensin mi?\n\n${tarihKisa(bas)} – ${tarihKisa(ekBitis(yeni))} · ${e.fiyat}\nÖdemenin alındığından emin olun.${durumNotu}`)) return;
+  const veri={ekler:[...(a.profil?.ekler||[]), yeni]};
+  if ((a.durum||'aktif')!=='aktif') { veri.durum='aktif'; a.durum='aktif'; }
+  uzmanProfilGuncelle(id, veri, '➕ Ek görüşme eklendi.');
+}
+
+function uzmanEkGeriAl(id) {
+  const a=uzmanAileler.find(x=>x.id===id); const ekler=[...(a?.profil?.ekler||[])]; if(!ekler.length) return;
+  const son=ekler[ekler.length-1];
+  if (!confirm(`Son eklenen ek görüşme (${tarihKisa(son.bas)}, ${son.gorusme} görüşme) geri alınsın mı?`)) return;
+  ekler.pop();
+  uzmanProfilGuncelle(id, {ekler}, 'Son ek görüşme geri alındı.');
 }
 
 function uzmanDondur(id) {
@@ -1528,6 +1587,6 @@ window.searchAileler=searchAileler; window.aileSil=aileSil; window.el=el;
 window.uzmanNotDuzenle=uzmanNotDuzenle; window.uzmanNotKaydet=uzmanNotKaydet;
 window.uzmanDuzenleAc=uzmanDuzenleAc; window.uzmanProfiliKaydet=uzmanProfiliKaydet;
 window.addRuya=addRuya; window.uzmanArandiToggle=uzmanArandiToggle;
-window.switchArsivTab=switchArsivTab; window.durumMenuToggle=durumMenuToggle; window.durumDegistir=durumDegistir;
+window.switchArsivTab=switchArsivTab; window.durumMenuToggle=durumMenuToggle; window.durumDegistir=durumDegistir; window.uzmanEkEkle=uzmanEkEkle; window.uzmanEkGeriAl=uzmanEkGeriAl;
 window.paketSeciminiKaydet=paketSeciminiKaydet; window.gecmisTumunuGoster=gecmisTumunuGoster; window.bilgilendirmeOkundu=bilgilendirmeOkundu;
 window.uzmanPaketKaydet=uzmanPaketKaydet; window.uzmanBaslat=uzmanBaslat; window.uzmanDondur=uzmanDondur; window.uzmanDevamEt=uzmanDevamEt;
