@@ -202,6 +202,21 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
 .paket-opt:has(input:checked){border-color:var(--dusty-rose);background:#FBF5EF;}
 .bilgi-madde{font-size:13px;color:var(--text-main);line-height:1.6;margin-bottom:10px;}
 .hafta-label{font-size:11px;color:var(--text-soft);margin:10px 0 6px;letter-spacing:.3px;}
+.hafta-grup>summary{list-style:none;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;}
+.hafta-grup>summary::-webkit-details-marker{display:none;}
+.hafta-grup>summary::before{content:'▸';font-size:11px;transition:transform .15s;display:inline-block;}
+.hafta-grup[open]>summary::before{transform:rotate(90deg);}
+.hafta-grup.aile>summary{margin:0;padding:10px 16px;border-bottom:1px solid rgba(226,213,200,0.4);background:rgba(196,147,106,0.04);}
+.hafta-ozet{opacity:.75;}
+.onceki-haftalar>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mid-brown);margin:8px 0 2px;padding:4px 10px;border:1px dashed var(--border);border-radius:14px;}
+.onceki-haftalar>summary::-webkit-details-marker{display:none;}
+.onceki-haftalar>summary::before{content:'▸';font-size:10px;transition:transform .15s;display:inline-block;}
+.onceki-haftalar[open]>summary::before{transform:rotate(90deg);}
+.onceki-haftalar.aile>summary{margin:10px 16px;}
+.duzenle-acilir{margin-top:8px;font-size:12px;}
+.duzenle-acilir>summary{cursor:pointer;color:var(--text-soft);list-style:none;display:inline-block;}
+.duzenle-acilir>summary::-webkit-details-marker{display:none;}
+.banner-sure{font-size:12px;color:var(--mid-brown);margin-top:2px;}
 .bugun-baslik{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin:18px 0 8px;}
 .bugun-satir{display:flex;align-items:center;gap:12px;background:var(--warm-white);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;cursor:pointer;}
 .bugun-satir:hover{border-color:var(--dusty-rose);}
@@ -362,6 +377,7 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
           <strong id="banner-bebek-ad">—</strong>
           <span id="banner-anne-ad">—</span>
           <span id="banner-dogum">—</span>
+          <span id="banner-sure" class="banner-sure" style="display:none;"></span>
         </div>
       </div>
       <div id="aile-uyari"></div>
