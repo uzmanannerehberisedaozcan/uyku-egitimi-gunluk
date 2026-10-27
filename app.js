@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  onAuthStateChanged, signOut
+  onAuthStateChanged, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -23,6 +23,7 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db   = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
+auth.languageCode = 'tr'; // şifre yenileme e-postası Türkçe gider
 
 const ADMIN_EMAIL = 'sedaozcan@uzmanannerehberi.com';
 const WA_NUMBER   = '905074402953';
@@ -204,6 +205,22 @@ function raporZamanMetni(k, p=aileProfil) {
 // ============================================================
 // AUTH MODAL
 // ============================================================
+// Şifremi unuttum: hesabın olup olmadığı söylenmez, her durumda aynı bilgi verilir
+async function sifremiUnuttum() {
+  const email=el('login-email')?.value.trim()||'';
+  const hata=el('login-hata'), bilgi=el('login-bilgi');
+  hide('login-hata'); hide('login-bilgi');
+  if (!email) { show('login-hata'); hata.textContent='Önce e-posta adresinizi yazın, sonra "Şifremi unuttum"a dokunun.'; return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch(e) {
+    if (e.code==='auth/invalid-email') { show('login-hata'); hata.textContent='E-posta adresi geçersiz görünüyor.'; return; }
+    if (e.code==='auth/too-many-requests') { show('login-hata'); hata.textContent='Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar deneyin.'; return; }
+    if (e.code!=='auth/user-not-found') { show('login-hata'); hata.textContent='Gönderilemedi: '+e.message; return; }
+  }
+  show('login-bilgi'); bilgi.textContent='✓ Bu e-posta ile kayıtlı bir hesap varsa şifre yenileme bağlantısı gönderildi. Gelen kutunuzu ve gereksiz (spam) klasörünü kontrol edin. Bağlantıya dokunup yeni şifrenizi belirleyin.';
+}
+
 function showAuthModal(tab='giris') { el('auth-modal')?.classList.add('open'); authTab(tab); }
 function closeAuthModal() { el('auth-modal')?.classList.remove('open'); }
 function authTab(mod) {
@@ -1537,11 +1554,17 @@ function paketKartHtml(a) {
     if (donmus) {
       const son=p.donmalar[p.donmalar.length-1];
       h+=`<div style="font-size:12.5px;margin-bottom:8px;">${tarihKisa(son.bas)}'den beri · <b>${gunFarki(son.bas,bugunStr())} gündür</b>${son.not?' · Not: '+son.not:''}</div>
-        <button class="mini-btn ana" onclick="uzmanDevamEt('${id}')">▶ Yeniden başladık</button>`;
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label for="devam-tarih-${id}" style="font-size:12px;color:var(--text-soft);">Yeniden başladığı gün</label>
+          <input type="date" id="devam-tarih-${id}" value="${bugunStr()}" min="${son.bas}" max="${bugunStr()}" title="Yeniden başladığı gün" style="padding:7px;border-radius:8px;border:1px solid var(--border);font-family:inherit;">
+          <button class="mini-btn ana" onclick="uzmanDevamEt('${id}')">▶ Yeniden başladık</button>
+        </div>`;
     }
     h+=`<details class="duzenle-acilir"><summary>⚙ Düzenle</summary><div style="margin-top:8px;">`;
     if (!donmus) {
       h+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label for="donma-tarih-${id}" style="font-size:12px;color:var(--text-soft);">Dondurmanın başladığı gün</label>
+          <input type="date" id="donma-tarih-${id}" value="${bugunStr()}" min="${[p.baslangic_tarihi, ...(p.donmalar||[]).map(d=>d.bit).filter(Boolean)].sort().pop()}" max="${bugunStr()}" title="Dondurmanın başladığı gün" style="padding:7px;border-radius:8px;border:1px solid var(--border);font-family:inherit;">
           <input id="donma-not-${id}" placeholder="Not (isteğe bağlı) örn. bebek ateşli" style="flex:1;min-width:160px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:12.5px;">
           <button class="mini-btn" onclick="uzmanDondur('${id}')">⏸ Paketi dondur</button>
         </div>`;
@@ -1633,8 +1656,14 @@ function uzmanEkGeriAl(id) {
 
 function uzmanDondur(id) {
   const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
+  const p=a.profil||{}, bugun=bugunStr();
+  const bas=el('donma-tarih-'+id)?.value||bugun;
+  const enErken=[p.baslangic_tarihi, ...(p.donmalar||[]).map(d=>d.bit).filter(Boolean)].sort().pop()||'';
+  if (bas>bugun) { showToast('❌ İleri bir tarih seçilemez.'); return; }
+  if (enErken && bas<enErken) { showToast('❌ Tarih, danışmanlık başlangıcından ya da önceki donmanın bitişinden önce olamaz.'); return; }
   const not=(el('donma-not-'+id)?.value||'').trim();
-  const donmalar=[...(a.profil?.donmalar||[]), {bas:bugunStr(), bit:null, not}];
+  if (bas!==bugun && !confirm(`Paket ${tarihKisa(bas)} tarihinden itibaren dondurulmuş olarak kaydedilsin mi?`)) return;
+  const donmalar=[...(p.donmalar||[]), {bas, bit:null, not}];
   uzmanProfilGuncelle(id, {donmalar}, '⏸ Paket donduruldu.');
 }
 
@@ -1642,7 +1671,10 @@ function uzmanDevamEt(id) {
   const a=uzmanAileler.find(x=>x.id===id); if(!a) return;
   const donmalar=(a.profil?.donmalar||[]).map(d=>({...d}));
   if (!donmalar.length) return;
-  donmalar[donmalar.length-1].bit=bugunStr();
+  const son=donmalar[donmalar.length-1], bugun=bugunStr();
+  const bit=el('devam-tarih-'+id)?.value||bugun; // Bugün ekranından basılırsa bugün
+  if (bit>bugun || bit<son.bas) { showToast('❌ Tarih, donmanın başladığı gün ile bugün arasında olmalı.'); return; }
+  son.bit=bit;
   uzmanProfilGuncelle(id, {donmalar}, '▶ Danışmanlık yeniden başladı.');
 }
 
@@ -1673,6 +1705,6 @@ window.searchAileler=searchAileler; window.aileSil=aileSil; window.el=el;
 window.uzmanNotDuzenle=uzmanNotDuzenle; window.uzmanNotKaydet=uzmanNotKaydet;
 window.uzmanDuzenleAc=uzmanDuzenleAc; window.uzmanProfiliKaydet=uzmanProfiliKaydet;
 window.addRuya=addRuya; window.uzmanArandiToggle=uzmanArandiToggle;
-window.switchArsivTab=switchArsivTab; window.durumMenuToggle=durumMenuToggle; window.durumDegistir=durumDegistir; window.kacanUyariKapat=kacanUyariKapat; window.uzmanEkEkle=uzmanEkEkle; window.uzmanEkGeriAl=uzmanEkGeriAl;
+window.switchArsivTab=switchArsivTab; window.durumMenuToggle=durumMenuToggle; window.durumDegistir=durumDegistir; window.sifremiUnuttum=sifremiUnuttum; window.kacanUyariKapat=kacanUyariKapat; window.uzmanEkEkle=uzmanEkEkle; window.uzmanEkGeriAl=uzmanEkGeriAl;
 window.paketSeciminiKaydet=paketSeciminiKaydet; window.gecmisTumunuGoster=gecmisTumunuGoster; window.bilgilendirmeOkundu=bilgilendirmeOkundu;
 window.uzmanPaketKaydet=uzmanPaketKaydet; window.uzmanBaslat=uzmanBaslat; window.uzmanDondur=uzmanDondur; window.uzmanDevamEt=uzmanDevamEt;

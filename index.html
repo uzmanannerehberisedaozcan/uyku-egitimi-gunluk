@@ -258,8 +258,10 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
     </div>
     <div id="giris-alanlari">
       <div class="form-group"><label>E-posta</label><input type="email" id="login-email" placeholder="ornek@email.com"></div>
-      <div class="form-group"><label>Şifre</label><input type="password" id="login-sifre" placeholder="Şifreniz"></div>
+      <div class="form-group"><label>Şifre</label><input type="password" id="login-sifre" placeholder="Şifreniz">
+        <div style="text-align:right;margin-top:6px;"><a href="#" onclick="event.preventDefault();sifremiUnuttum()" style="font-size:12.5px;color:var(--mid-brown);">Şifremi unuttum</a></div></div>
       <div class="error-msg" id="login-hata"></div>
+      <div class="error-msg" id="login-bilgi" style="background:#E9F2EA;border-color:#C3DCC6;color:#3F6B4A;"></div>
       <button class="btn-primary" style="width:100%;border-radius:10px;padding:13px;" id="btn-giris">Giriş Yap →</button>
     </div>
     <div id="kayit-alanlari" style="display:none;">
