@@ -191,6 +191,30 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
 .uyari-kirmizi{background:#FBEDEC;border:1px solid #E8B4B4;color:#9A3B3B;}
 .uyari-mavi{background:#EEF2F6;border:1px solid #C9D5E2;color:#3E5872;}
 .uyari-yesil{background:#E9F2EA;border:1px solid #C3DCC6;color:#3F6B4A;}
+/* Mevcut durum */
+.paket-izgara{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;}
+@media(max-width:820px){.paket-izgara{grid-template-columns:1fr;}}
+.md-etiket{display:inline-block;background:#F3EAF7;color:#6E4E8A;border:1px solid #E2D2EC;border-radius:12px;padding:3px 10px;font-size:12px;margin:0 6px 6px 0;}
+.md-bos{font-size:12px;color:var(--text-soft);}
+.md-tarih{font-size:11px;color:var(--text-soft);}
+.md-grup{margin:8px 0;}
+.md-grup-ad{font-size:11.5px;color:var(--text-soft);margin-bottom:4px;}
+.md-secenekler{display:flex;flex-wrap:wrap;gap:6px;}
+.md-chip{border:1.5px solid var(--border);background:white;border-radius:16px;padding:6px 12px;font-family:inherit;font-size:12.5px;cursor:pointer;color:var(--text-main);}
+.md-chip.secili{background:#8B6AAE;border-color:#8B6AAE;color:white;}
+.md-not{width:100%;margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;box-sizing:border-box;}
+.md-cubuk{background:white;border:1px solid var(--border);border-radius:12px;padding:0 14px;margin-bottom:12px;max-width:100%;min-width:0;overflow:hidden;box-sizing:border-box;}
+#mevcut-durum-aile{min-width:0;max-width:100%;}
+.gunluk-editor-area,.gecmis-sidebar{min-width:0;} /* uzun tek satır özet grid sütununu genişletmesin */
+.md-cubuk>summary{list-style:none;cursor:pointer;padding:11px 22px 11px 0;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;font-size:13px;position:relative;white-space:nowrap;}
+.md-cubuk>summary::-webkit-details-marker{display:none;}
+.md-cubuk>summary::after{content:'▸';position:absolute;right:0;top:12px;color:var(--text-soft);transition:transform .15s;}
+.md-cubuk[open] .md-ozet{display:none;}
+.md-cubuk[open]>summary::after{transform:rotate(90deg);}
+.md-teksatir{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#6E4E8A;}
+.md-cubuk[open] .md-teksatir{display:none;}
+.md-cubuk[open]{padding-bottom:12px;}
+.md-aciklama{font-size:12px;color:var(--text-soft);margin-bottom:6px;}
 .ek-acilir>summary{list-style:none;display:inline-flex;align-items:center;}
 .ek-acilir>summary::-webkit-details-marker{display:none;}
 .btn-wa{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#25D366;color:white;border:none;padding:12px 16px;border-radius:50px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none;margin-top:10px;box-shadow:0 4px 16px rgba(37,211,102,0.3);}
@@ -382,6 +406,7 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
           <span id="banner-sure" class="banner-sure" style="display:none;"></span>
         </div>
       </div>
+      <div id="mevcut-durum-aile"></div>
       <div id="aile-uyari"></div>
 
       <div id="gunluk-editor" style="display:none;">
@@ -419,12 +444,18 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
         <!-- GECE -->
         <div class="form-card">
           <h3>🌙 Gece Uykusu</h3>
-          <div class="time-group" style="margin-bottom:12px;">
-            <div class="form-group"><label>Yatış saati</label>
+          <div class="time-group" style="margin-bottom:4px;">
+            <div class="form-group"><label>Akşam uykuya dalış saati</label>
               <input type="text" id="yatis" placeholder="örn. 20:00" inputmode="numeric"
                 oninput="formatSaatInput(this);calcGece()"
                 onblur="formatSaatInput(this,true);calcGece()">
             </div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Nasıl daldı?</label>
+            <textarea id="aksam-dalis" style="min-height:60px;" placeholder="örn. Emzirerek, 15 dakikada daldı…"></textarea>
+          </div>
+          <div class="time-group" style="margin-bottom:12px;">
             <div class="form-group"><label>Sabah kalkış saati</label>
               <input type="text" id="kalkis" placeholder="örn. 07:00" inputmode="numeric"
                 oninput="formatSaatInput(this);calcGece()"
@@ -433,10 +464,6 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
             <div class="form-group"><label>Toplam gece uykusu</label>
               <input type="text" id="gece-sure" readonly placeholder="Otomatik" style="background:#F5F0EA;color:var(--mid-brown);">
             </div>
-          </div>
-          <div class="form-group" style="margin-bottom:14px;">
-            <label style="color:var(--dusty-rose);font-weight:600;">Akşam uykuya nasıl daldı?</label>
-            <textarea id="aksam-dalis" style="min-height:70px;" placeholder="örn. Emzirerek, 15 dakikada daldı…"></textarea>
           </div>
           <label style="font-size:12.5px;color:var(--mid-brown);font-weight:500;display:block;margin-bottom:8px;">Gece Ara Uyanmaları</label>
           <div id="uyanma-list"></div>
@@ -490,7 +517,7 @@ input::placeholder,textarea::placeholder{color:#C9BBAE;font-style:italic;font-we
   <div class="dash-content">
     <div class="stats-row">
       <div class="stat-card"><div class="stat-label">Toplam Aile</div><div class="stat-value" id="stat-toplam">—</div><div class="stat-sub">Kayıtlı</div></div>
-      <div class="stat-card"><div class="stat-label">Günlük Giren</div><div class="stat-value" id="stat-aktif" style="color:var(--sage)">—</div><div class="stat-sub">En az 1 gün</div></div>
+      <div class="stat-card"><div class="stat-label">Aktif Aile</div><div class="stat-value" id="stat-aktif" style="color:var(--sage)">—</div><div class="stat-sub">Takipte olan</div></div>
       <div class="stat-card"><div class="stat-label">Son Kayıt</div><div class="stat-value" id="stat-son" style="font-size:15px;padding-top:8px;">—</div><div class="stat-sub" id="stat-son-sub">—</div></div>
     </div>
 
