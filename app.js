@@ -1215,12 +1215,13 @@ function renderBugun() {
   const tatil=tatilMi(bugun);
   const haftaSonu=tatil || [0,6].includes(new Date(bugun+'T12:00:00').getDay());
   const aktifler=uzmanAileler.filter(a=>(a.durum||'aktif')==='aktif');
-  const aranacak=[], arananlar=[], gelmeyen=[], uzunAra=[], donmusGelen=[];
+  const aranacak=[], arananlar=[], gelmeyen=[], uzunAra=[], donmusGelen=[], baslamamisGelen=[];
   for (const a of aktifler) {
     const h=bugunHareketleri(a), p=a.profil||{}, k=etkinPaket(p);
     const ara=sonGunlukGunFarki(a);
     if (h.arandi) arananlar.push({a,h});
     else if (donmusMu(p)) { if (h.geldi) donmusGelen.push({a,h}); }
+    else if (!p.baslangic_tarihi || p.baslangic_tarihi>bugun) { if (h.geldi) baslamamisGelen.push({a,h}); }
     else if (h.geldi) aranacak.push({a,h});
     else if (k && ara!=null && ara>=UZUN_ARA_GUN && !donmusMu(p) && !aktifEk(p)) uzunAra.push({a,h,ara});
     else if (!haftaSonu && p.baslangic_tarihi && !donmusMu(p) && takipGunuMu(k, bugun) && !sureDolduMu(p)) gelmeyen.push({a,h});
@@ -1253,6 +1254,13 @@ function renderBugun() {
   if (!haftaSonu) {
     html+=`<div class="bugun-baslik" style="color:var(--text-soft);">Takip günü · günlük gelmedi (${gelmeyen.length})</div>`;
     html+=gelmeyen.length?gelmeyen.map(x=>satir(x,`<span style="color:var(--text-soft);">${sonGunlukMetni(x.a).replace('Son günlük: ','son: ')}</span>`)).join(''):'<div style="font-size:12.5px;color:var(--text-soft);padding:4px 2px;">Herkes iletti.</div>';
+  }
+  if (baslamamisGelen.length) {
+    html+=`<div class="bugun-baslik" style="color:var(--text-soft);">🕓 Danışmanlık başlamadı · günlük gönderdi (${baslamamisGelen.length})</div>`;
+    html+=baslamamisGelen.map(x=>{
+      const bas=x.a.profil?.baslangic_tarihi;
+      return satir(x,`<span style="color:var(--text-soft);">${bas?tarihKisa(bas)+'\'de başlayacak':'Başlangıç girilmedi'}</span>`);
+    }).join('');
   }
   if (donmusGelen.length) {
     html+=`<div class="bugun-baslik" style="color:var(--text-soft);">⏸ Paketi dondurulmuş ama günlük gönderdi (${donmusGelen.length})</div>`;
