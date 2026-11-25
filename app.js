@@ -473,7 +473,7 @@ function portalYukle() {
     }
   }
   renderGecmisList();
-  gunlukAc(bugunStr());
+  gunlukAc(taslakliGun()||bugunStr());
   mevcutDurumAileGoster();
   aileUyarilariGoster();
   aileIlkGirisAdimlari();
@@ -679,11 +679,61 @@ function gunlukAc(tarih) {
   el('aktif-tarih-label').textContent=tarihTR(tarih);
   formSifirla();
   formYukle(gunlukCache[tarih]||{});
+  taslakTaban=JSON.stringify(gunlukTopla());
+  const taslak=taslakOku(tarih);
+  if (taslak && JSON.stringify(taslak.veri)!==taslakTaban) {
+    formSifirla(); formYukle(taslak.veri);
+    const u=el('taslak-uyari');
+    if (u) { u.innerHTML=`💾 Kaydedilmemiş bilgileriniz geri yüklendi (${saatStr(new Date(taslak.zaman))}). Kontrol edip <b>Kaydet</b>'e basmayı unutmayın.`; u.style.display='block'; }
+  } else hide('taslak-uyari');
   renderGecmisList();
   show('gunluk-editor');
   hide('bos-durum');
   hide('kayit-sonrasi');
 }
+
+// ============================================================
+// TASLAK — Kaydet'e basılmadan sayfa kapanırsa yazılanlar telefonda saklanır
+// ============================================================
+let taslakTaban='', taslakZamanlayici=null;
+const taslakAnahtar=(t)=>`taslak-${activeProfilId}-${t}`;
+function taslakOku(t) {
+  if (!activeProfilId) return null;
+  try { return JSON.parse(localStorage.getItem(taslakAnahtar(t))||'null'); } catch(e) { return null; }
+}
+function taslakSil(t) {
+  try { localStorage.removeItem(taslakAnahtar(t)); } catch(e) {}
+  hide('taslak-uyari');
+}
+function taslakKaydet() {
+  if (!activeProfilId || !aktifTarih) return;
+  const veri=gunlukTopla();
+  try {
+    if (JSON.stringify(veri)===taslakTaban) localStorage.removeItem(taslakAnahtar(aktifTarih));
+    else localStorage.setItem(taslakAnahtar(aktifTarih), JSON.stringify({veri, zaman:Date.now()}));
+  } catch(e) {}
+}
+function taslakZamanla() { clearTimeout(taslakZamanlayici); taslakZamanlayici=setTimeout(taslakKaydet, 400); }
+// Sayfa açılınca: bugünden farklı bir günde kaydedilmemiş taslak varsa o günü aç
+function taslakliGun() {
+  if (!activeProfilId) return null;
+  const on=`taslak-${activeProfilId}-`; let son=null;
+  try {
+    for (let i=0;i<localStorage.length;i++) {
+      const k=localStorage.key(i); if (!k?.startsWith(on)) continue;
+      const v=JSON.parse(localStorage.getItem(k)||'null');
+      if (!v || Date.now()-v.zaman>7*864e5) { localStorage.removeItem(k); i--; continue; }
+      if (!son || v.zaman>son.zaman) son={t:k.slice(on.length), zaman:v.zaman};
+    }
+  } catch(e) {}
+  return son?.t||null;
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const ed=el('gunluk-editor'); if (!ed) return;
+  ['input','change','click'].forEach(o=>ed.addEventListener(o, e=>{ if (e.target?.id!=='aktif-tarih-input') taslakZamanla(); }));
+});
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='hidden') { clearTimeout(taslakZamanlayici); taslakKaydet(); } });
+window.addEventListener('pagehide', ()=>{ clearTimeout(taslakZamanlayici); taslakKaydet(); });
 
 function tarihDegistir() {
   const t=el('aktif-tarih-input').value;
@@ -796,6 +846,8 @@ async function gunlukKaydet() {
   if (btn) { btn.textContent='⏳ Kaydediliyor...'; btn.disabled=true; }
   try {
     await gunlukFirebaseKaydet(aktifTarih, gunlukTopla());
+    clearTimeout(taslakZamanlayici); taslakSil(aktifTarih);
+    taslakTaban=JSON.stringify(gunlukTopla());
     renderGecmisList();
     showToast('✓ Kaydedildi!');
     kayitSonrasiGoster(aktifTarih);
