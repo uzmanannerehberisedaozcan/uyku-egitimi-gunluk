@@ -638,7 +638,7 @@ function renderGecmisList() {
     const gunduzSayi=(g?.gunduz||[]).length;
     const aktifCls=t===aktifTarih?'gecmis-item aktif':'gecmis-item';
     const rapor=tsDate(g?.rapor_tiklama);
-    return `<div class="${aktifCls}" onclick="gunlukAc('${t}')">
+    return `<div class="${aktifCls}" onclick="gunGecis('${t}')">
       <div class="gecmis-tarih">${tarihTR(t)}</div>
       <div class="gecmis-ozet">${gunduzSayi>0?'☀️ '+gunduzSayi+' gündüz':''} ${geceSure?'🌙 '+geceSure:''}${rapor?' · <span style="color:#3F6B4A;">📤 rapor '+saatStr(rapor)+'</span>':''}</div>
     </div>`;
@@ -699,7 +699,14 @@ let taslakTaban='', taslakZamanlayici=null;
 const taslakAnahtar=(t)=>`taslak-${activeProfilId}-${t}`;
 function taslakOku(t) {
   if (!activeProfilId) return null;
-  try { return JSON.parse(localStorage.getItem(taslakAnahtar(t))||'null'); } catch(e) { return null; }
+  try {
+    const v=JSON.parse(localStorage.getItem(taslakAnahtar(t))||'null');
+    if (!v) return null;
+    // Bu gün taslaktan sonra (ör. başka cihazda) kaydedildiyse taslak eskidir
+    const kayit=tsDate(gunlukCache[t]?.guncelleme);
+    if (kayit && kayit.getTime()>v.zaman) { localStorage.removeItem(taslakAnahtar(t)); return null; }
+    return v;
+  } catch(e) { return null; }
 }
 function taslakSil(t) {
   try { localStorage.removeItem(taslakAnahtar(t)); } catch(e) {}
@@ -719,25 +726,54 @@ function taslakliGun() {
   if (!activeProfilId) return null;
   const on=`taslak-${activeProfilId}-`; let son=null;
   try {
-    for (let i=0;i<localStorage.length;i++) {
-      const k=localStorage.key(i); if (!k?.startsWith(on)) continue;
-      const v=JSON.parse(localStorage.getItem(k)||'null');
-      if (!v || Date.now()-v.zaman>7*864e5) { localStorage.removeItem(k); i--; continue; }
-      if (!son || v.zaman>son.zaman) son={t:k.slice(on.length), zaman:v.zaman};
+    const anahtarlar=[];
+    for (let i=0;i<localStorage.length;i++) { const k=localStorage.key(i); if (k?.startsWith(on)) anahtarlar.push(k); }
+    for (const k of anahtarlar) {
+      let v=null; try { v=JSON.parse(localStorage.getItem(k)||'null'); } catch(e) {}
+      if (!v || !v.zaman || Date.now()-v.zaman>7*864e5) { localStorage.removeItem(k); continue; }
+      const t=k.slice(on.length);
+      if (!taslakOku(t)) continue;
+      if (!son || v.zaman>son.zaman) son={t, zaman:v.zaman};
     }
   } catch(e) {}
   return son?.t||null;
 }
-document.addEventListener('DOMContentLoaded', ()=>{
+function taslakDinle() {
   const ed=el('gunluk-editor'); if (!ed) return;
   ['input','change','click'].forEach(o=>ed.addEventListener(o, e=>{ if (e.target?.id!=='aktif-tarih-input') taslakZamanla(); }));
-});
+}
+if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', taslakDinle); else taslakDinle();
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='hidden') { clearTimeout(taslakZamanlayici); taslakKaydet(); } });
 window.addEventListener('pagehide', ()=>{ clearTimeout(taslakZamanlayici); taslakKaydet(); });
 
+let tarihZamanlayici=null;
+// Başka güne geçiş: formda kaydedilmemiş bilgi varsa kaybolmasın
+function gunGecis(t) {
+  if (!t || t===aktifTarih) return;
+  clearTimeout(taslakZamanlayici);
+  const veri=gunlukTopla();
+  const degisti=activeProfilId && aktifTarih && JSON.stringify(veri)!==taslakTaban;
+  if (!degisti) { gunlukAc(t); return; }
+  const eski=aktifTarih;
+  const hedefBos=!gunlukCache[t] && !taslakOku(t);
+  if (hedefBos && confirm(`Yazdığınız bilgiler ${tarihTR(t)} gününe aktarılsın mı?\n\nTamam: bilgiler bu güne geçer.\nİptal: bilgiler ${tarihTR(eski)} gününde saklı kalır.`)) {
+    taslakSil(eski);
+    gunlukAc(t);
+    formSifirla(); formYukle(veri); taslakKaydet();
+    const u=el('taslak-uyari');
+    if (u) { u.innerHTML=`💾 Yazdığınız bilgiler bu güne aktarıldı. Kontrol edip <b>Kaydet</b>'e basmayı unutmayın.`; u.style.display='block'; }
+    return;
+  }
+  taslakKaydet();
+  gunlukAc(t);
+  showToast(`💾 ${tarihKisa(eski)} için yazdıklarınız saklandı; o güne dönünce devam edebilirsiniz.`);
+}
 function tarihDegistir() {
   const t=el('aktif-tarih-input').value;
-  if (t) gunlukAc(t);
+  if (!t) return;
+  // iPhone'da tarih çarkı çevrilirken birden çok kez tetiklenebilir; durulunca geç
+  clearTimeout(tarihZamanlayici);
+  tarihZamanlayici=setTimeout(()=>gunGecis(t), 500);
 }
 
 // ============================================================
@@ -862,7 +898,12 @@ async function gunlukKaydet() {
 // ============================================================
 // RAPOR MODAL
 // ============================================================
-function raporModalAc() {
+async function raporModalAc() {
+  if (activeProfilId && aktifTarih && JSON.stringify(gunlukTopla())!==taslakTaban) {
+    showToast('💾 Rapordan önce günlüğünüz kaydediliyor...');
+    await gunlukKaydet();
+    if (JSON.stringify(gunlukTopla())!==taslakTaban) return; // kaydedilemedi
+  }
   const tarihler=Object.keys(gunlukCache).sort();
   if (tarihler.length===0) { showToast('❌ Önce günlük kaydedin.'); return; }
   el('rapor-gun-list').innerHTML=tarihler.map((t,i)=>`
@@ -1871,7 +1912,7 @@ document.addEventListener('DOMContentLoaded', () => {
 window.showAuthModal=showAuthModal; window.closeAuthModal=closeAuthModal; window.authTab=authTab;
 window.showUzmanLogin=showUzmanLogin; window.closeUzmanLogin=closeUzmanLogin;
 window.uzmanGiris=uzmanGiris; window.uzmanCikis=uzmanCikis; window.aileCikis=aileCikis;
-window.gunlukAc=gunlukAc; window.tarihDegistir=tarihDegistir; window.gunlukKaydet=gunlukKaydet;
+window.gunlukAc=gunlukAc; window.gunGecis=gunGecis; window.tarihDegistir=tarihDegistir; window.gunlukKaydet=gunlukKaydet;
 window.raporModalAc=raporModalAc; window.raporModalKapat=raporModalKapat; window.raporGonder=raporGonder;
 window.raporOlustur=raporOlustur; window.raporGeriDon=raporGeriDon;
 window.addGunduzUyku=addGunduzUyku; window.removeGunduzUyku=removeGunduzUyku;
